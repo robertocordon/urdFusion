@@ -19,7 +19,6 @@ Export URDF files from Fusion360
   * Add the import, and then update `reloadModules`. The order matters, deeper reloads go in first.
 
 ## Roadmap
-* Ensure links have unique names
 * Check if all bodies (or parent components) have a material assigned - warn if not
 
 * Generate CSV file with all links and their mass, center of mass and inertial vectors. 

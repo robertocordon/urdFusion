@@ -129,7 +129,7 @@ def show(ui, on_complete):
         cmd_def.deleteMe()
 
     cmd_def = ui.commandDefinitions.addButtonDefinition(
-        _CMD_ID, 'Select Links', 'Select components as URDF links'
+        _CMD_ID, 'Export URDF', 'Select components as URDF links'
     )
     on_created = _CreatedHandler(on_complete)
     cmd_def.commandCreated.add(on_created)
