@@ -6,7 +6,7 @@ import adsk.core
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from modules import hello_world
+from modules import hello_world, urdFusionMain
 
 ui = adsk.core.Application.get().userInterface
 
@@ -20,7 +20,8 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
 
     def notify(self, args):
         try:
-            main()
+            reloadModules()
+            urdFusionMain.execute(ui)
         except Exception:
             ui.messageBox(traceback.format_exc())
 
@@ -76,7 +77,8 @@ def stop(context):
     except Exception:
         ui.messageBox(traceback.format_exc())
 
-def main():
-    importlib.reload(hello_world)  #avoids stale module during development
-    hello_world.execute(ui)
+#avoids stale modules during development
+def reloadModules():
+    importlib.reload(hello_world)
+    importlib.reload(urdFusionMain)
 
