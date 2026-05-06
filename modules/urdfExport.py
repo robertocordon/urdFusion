@@ -1,4 +1,5 @@
 import csv
+from dataclasses import dataclass
 import adsk.core
 import traceback
 
@@ -14,6 +15,38 @@ _HEADER = [
 ]
 
 
+@dataclass
+class _Naming:
+    component: str
+    link: str
+
+
+@dataclass
+class _Point3:
+    x: float
+    y: float
+    z: float
+
+
+@dataclass
+class _Inertia:
+    xx: float
+    xy: float
+    xz: float
+    yy: float
+    yz: float
+    zz: float
+
+
+@dataclass
+class _URDFLink:
+    naming: _Naming
+    mass: float
+    origin: _Point3
+    center_of_mass: _Point3
+    inertia: _Inertia
+
+
 def exportCsv(ui, link_names, base_link):
     try:
         dialog = ui.createFileDialog()
@@ -27,12 +60,18 @@ def exportCsv(ui, link_names, base_link):
         if not path.endswith('.csv'):
             path += '.csv'
 
-        rest = {name: occ for name, occ in link_names.items() if occ is not base_link}
+        links = _collectURDFData(link_names, base_link)
 
         rows = [_HEADER]
-        rows.append(_buildRow(base_link, 'base_link'))
-        for link_name in sorted(rest):
-            rows.append(_buildRow(rest[link_name], link_name))
+        for lnk in links:
+            rows.append([
+                lnk.naming.component, lnk.naming.link,
+                lnk.origin.x, lnk.origin.y, lnk.origin.z,
+                lnk.mass,
+                lnk.center_of_mass.x, lnk.center_of_mass.y, lnk.center_of_mass.z,
+                lnk.inertia.xx, lnk.inertia.xy, lnk.inertia.xz,
+                lnk.inertia.yy, lnk.inertia.yz, lnk.inertia.zz,
+            ])
 
         with open(path, 'w', newline='') as f:
             csv.writer(f).writerows(rows)
@@ -43,35 +82,39 @@ def exportCsv(ui, link_names, base_link):
         ui.messageBox(traceback.format_exc())
 
 
-def _buildRow(occ, link_name):
-    t = occ.transform.translation  # component origin in world space, cm
-    offset_x = t.x * _CM_TO_M
-    offset_y = t.y * _CM_TO_M
-    offset_z = t.z * _CM_TO_M
+def _collectURDFData(link_names, base_link):
+    base = _buildLink(base_link, 'base_link')
+    rest = sorted(
+        [_buildLink(occ, name) for name, occ in link_names.items() if occ is not base_link],
+        key=lambda lnk: lnk.naming.link
+    )
+    return [base] + rest
 
-    props = occ.component.physicalProperties  # local component space
-    mass = props.mass  # kg
 
-    com = props.centerOfMass  # Point3D, cm, relative to component origin
-    com_x = com.x * _CM_TO_M
-    com_y = com.y * _CM_TO_M
-    com_z = com.z * _CM_TO_M
+def _buildLink(occ, link_name):
+    tf = occ.transform.translation
+    origin = _Point3(tf.x * _CM_TO_M, tf.y * _CM_TO_M, tf.z * _CM_TO_M)
 
-    # Fusion returns (bool, xx, yy, zz, xy, yz, xz) at the origin, in kg·cm²
+    props = occ.component.physicalProperties
+    mass = props.mass
+
+    com = props.centerOfMass
+    center_of_mass = _Point3(com.x * _CM_TO_M, com.y * _CM_TO_M, com.z * _CM_TO_M)
+
     (_, xx, yy, zz, xy, yz, xz) = props.getXYZMomentsOfInertia()
-
-    # Convert to kg·m² first, then shift from origin to CoM (parallel axis in meters)
     ixx, iyy, izz, ixy, iyz, ixz = [v * _KGCM2_TO_KGM2 for v in [xx, yy, zz, xy, yz, xz]]
-    x, y, z = com_x, com_y, com_z
-    translation = [y**2 + z**2, x**2 + z**2, x**2 + y**2, -x*y, -y*z, -x*z]
-    ixx, iyy, izz, ixy, iyz, ixz = [
-        i - mass * t for i, t in zip([ixx, iyy, izz, ixy, iyz, ixz], translation)
-    ]
 
-    return [
-        occ.name, link_name,
-        offset_x, offset_y, offset_z,
-        mass,
-        com_x, com_y, com_z,
-        ixx, ixy, ixz, iyy, iyz, izz,
+    x, y, z = center_of_mass.x, center_of_mass.y, center_of_mass.z
+    offsets = [y**2 + z**2, x**2 + z**2, x**2 + y**2, -x*y, -y*z, -x*z]
+    ixx, iyy, izz, ixy, iyz, ixz = [
+        i - mass * d for i, d in zip([ixx, iyy, izz, ixy, iyz, ixz], offsets)
     ]
+    inertia = _Inertia(ixx, ixy, ixz, iyy, iyz, izz)
+
+    return _URDFLink(
+        _Naming(occ.name, link_name),
+        mass,
+        origin,
+        center_of_mass,
+        inertia,
+    )
