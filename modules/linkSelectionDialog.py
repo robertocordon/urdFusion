@@ -2,7 +2,18 @@ import adsk.core
 import traceback
 
 _CMD_ID = 'urdFusion_linkSelection'
+_SELECTION_INPUT_ID = 'selection'
+_BASE_LINK_INPUT_ID = 'baseLink'
+_BASE_LINK_PLACEHOLDER = '<select one>'
 _handlers = []
+
+
+def _rebuildBaseLinkDropdown(sel_input, base_link_input):
+    base_link_input.listItems.clear()
+    base_link_input.listItems.add(_BASE_LINK_PLACEHOLDER, True, '')
+    for i in range(sel_input.selectionCount):
+        comp = sel_input.selection(i).entity
+        base_link_input.listItems.add(comp.name, False, '')
 
 
 class _ExecuteHandler(adsk.core.CommandEventHandler):
@@ -13,9 +24,54 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
     def notify(self, args):
         try:
             inputs = args.firingEvent.sender.commandInputs
-            sel_input = inputs.itemById('selection')
+            sel_input = inputs.itemById(_SELECTION_INPUT_ID)
             components = [sel_input.selection(i).entity for i in range(sel_input.selectionCount)]
-            self._on_complete(components)
+
+            base_link_input = inputs.itemById(_BASE_LINK_INPUT_ID)
+            base_link = None
+            selected = base_link_input.selectedItem
+            if selected and selected.index > 0:  # index 0 is the placeholder
+                comp_idx = selected.index - 1
+                if 0 <= comp_idx < len(components):
+                    base_link = components[comp_idx]
+
+            self._on_complete(components, base_link)
+        except Exception:
+            adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
+
+
+class _InputChangedHandler(adsk.core.InputChangedEventHandler):
+    def __init__(self):
+        super().__init__()
+
+    def notify(self, args):
+        try:
+            if args.input.id != _SELECTION_INPUT_ID:
+                return
+
+            inputs = args.firingEvent.sender.commandInputs
+            sel_input = inputs.itemById(_SELECTION_INPUT_ID)
+            base_link_input = inputs.itemById(_BASE_LINK_INPUT_ID)
+            _rebuildBaseLinkDropdown(sel_input, base_link_input)
+        except Exception:
+            adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
+
+
+class _ValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
+    def __init__(self):
+        super().__init__()
+
+    def notify(self, args):
+        try:
+            inputs = args.firingEvent.sender.commandInputs
+            sel_input = inputs.itemById(_SELECTION_INPUT_ID)
+            base_link_input = inputs.itemById(_BASE_LINK_INPUT_ID)
+
+            has_links = sel_input.selectionCount > 0
+            selected = base_link_input.selectedItem
+            has_base_link = selected is not None and selected.index > 0
+
+            args.areInputsValid = has_links and has_base_link
         except Exception:
             adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
 
@@ -38,14 +94,27 @@ class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
             cmd = args.command
 
             sel_input = cmd.commandInputs.addSelectionInput(
-                'selection', 'Links', 'Select components to export as URDF links'
+                _SELECTION_INPUT_ID, 'Links', 'Select components to export as URDF links'
             )
             sel_input.addSelectionFilter('Occurrences')
             sel_input.setSelectionLimits(1, 0)  # min 1, max unlimited
 
+            base_link_input = cmd.commandInputs.addDropDownCommandInput(
+                _BASE_LINK_INPUT_ID, 'Base Link', adsk.core.DropDownStyles.TextListDropDownStyle
+            )
+            base_link_input.listItems.add(_BASE_LINK_PLACEHOLDER, True, '')
+
             on_execute = _ExecuteHandler(self._on_complete)
             cmd.execute.add(on_execute)
             _handlers.append(on_execute)
+
+            on_input_changed = _InputChangedHandler()
+            cmd.inputChanged.add(on_input_changed)
+            _handlers.append(on_input_changed)
+
+            on_validate = _ValidateInputsHandler()
+            cmd.validateInputs.add(on_validate)
+            _handlers.append(on_validate)
 
             on_destroy = _DestroyHandler()
             cmd.destroy.add(on_destroy)
