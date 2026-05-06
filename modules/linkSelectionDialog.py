@@ -57,6 +57,25 @@ class _InputChangedHandler(adsk.core.InputChangedEventHandler):
             adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
 
 
+class _ValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
+    def __init__(self):
+        super().__init__()
+
+    def notify(self, args):
+        try:
+            inputs = args.firingEvent.sender.commandInputs
+            sel_input = inputs.itemById(_SELECTION_INPUT_ID)
+            base_link_input = inputs.itemById(_BASE_LINK_INPUT_ID)
+
+            has_links = sel_input.selectionCount > 0
+            selected = base_link_input.selectedItem
+            has_base_link = selected is not None and selected.index > 0
+
+            args.areInputsValid = has_links and has_base_link
+        except Exception:
+            adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
+
+
 class _DestroyHandler(adsk.core.CommandEventHandler):
     def __init__(self):
         super().__init__()
@@ -92,6 +111,10 @@ class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
             on_input_changed = _InputChangedHandler()
             cmd.inputChanged.add(on_input_changed)
             _handlers.append(on_input_changed)
+
+            on_validate = _ValidateInputsHandler()
+            cmd.validateInputs.add(on_validate)
+            _handlers.append(on_validate)
 
             on_destroy = _DestroyHandler()
             cmd.destroy.add(on_destroy)
