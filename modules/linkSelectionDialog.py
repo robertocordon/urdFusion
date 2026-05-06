@@ -124,8 +124,8 @@ class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
         try:
             cmd = args.command
 
-            mode_input = cmd.commandInputs.addRadioButtonGroupCommandInput(
-                _EXPORT_MODE_INPUT_ID, 'Export'
+            mode_input = cmd.commandInputs.addDropDownCommandInput(
+                _EXPORT_MODE_INPUT_ID, 'Export', adsk.core.DropDownStyles.TextListDropDownStyle
             )
             mode_input.listItems.add(_MODE_ALL, True)
             mode_input.listItems.add(_MODE_CUSTOM, False)
