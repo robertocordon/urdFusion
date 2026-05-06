@@ -9,8 +9,9 @@ Export URDF files from Fusion360
 
 ### Running
 * Under `Add-Ins` a button for `urdFusion` is present. Press it!
-* Select whether you want to export all (visible) top-level components, or you want to select them manually. If the latter, select them.
-* Choose which component will become the URDF's base link?
+* Select whether you want to export all (visible) top-level components, or you want to select them manually. If the latter, select them
+* Choose which component will become the URDF's base link
+* Press Ok, and select which where to save the CSV file to
 
 ## Development
 * When the `urdFusion` button is pressed, all modules are reloaded. So any changes to modules will automatically be picked up.
@@ -19,7 +20,6 @@ Export URDF files from Fusion360
   * Add the import, and then update `reloadModules`. The order matters, deeper reloads go in first.
 
 ## Roadmap
-* Generate CSV file with all links and their mass, center of mass and inertial vectors. 
 * Export STLs
 * Generate URDF with all links
 * Add materials to URDF (ie colors)
