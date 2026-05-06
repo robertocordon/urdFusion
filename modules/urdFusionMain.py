@@ -1,4 +1,4 @@
-from modules import linkSelectionDialog, linkSelection
+from modules import linkSelectionDialog, linkSelection, urdfExport
 
 
 def execute(ui):
@@ -10,10 +10,6 @@ def execute(ui):
         if not link_names:
             return
 
-        base_name = base_link.name if base_link else '(none)'
-        pairs = '\n'.join(name + '  (' + occ.name + ')' for name, occ in link_names.items())
-        ui.messageBox(
-            'Base link: ' + base_name + '\n\nURDF links:\n' + pairs
-        )
+        urdfExport.exportCsv(ui, link_names, base_link)
 
     linkSelectionDialog.show(ui, _linkSelectionComplete)
