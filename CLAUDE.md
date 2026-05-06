@@ -10,6 +10,8 @@ Thin entry point + modules pattern:
 - `modules/urdFusionMain.py` — Top-level orchestrator (`execute(ui)`). Owns the export pipeline: shows dialog, runs validation, exports. New steps in the pipeline get added here.
 - `modules/linkSelectionDialog.py` — UI module. Builds the Fusion command dialog (Links selection input + Base Link dropdown). Async by Fusion's design — exposes `show(ui, on_complete)` where `on_complete(components, base_link)` is a callback fired on OK.
 - `modules/linkSelection.py` — Validation and naming logic on selected components. `checkAllBodiesSelected` verifies all visible bodies are covered. `getUniqueLinkNames` returns a `{link_name: occurrence}` dict where keys are sanitized, unique, ROS-legal names. No UI ownership; shows its own dialogs for validation failures.
+- `modules/urdfLink.py` — Data model and collection logic. Defines `URDFLink` and its nested dataclasses (`Naming`, `Point3`, `Inertia`). Exposes `collectLinksData(link_names, base_link)` which returns a list of `URDFLink` objects — base link first (named `base_link`), remainder sorted by link name. All values in SI units (m, kg, kg·m²). This is the module exporters (CSV, URDF XML, etc.) should call.
+- `modules/urdfExport.py` — CSV serialization. Calls `urdfLink.collectLinksData` and writes the result to a user-chosen file.
 
 Modules in `modules/` should:
 - Not import `urdFusion.py` (it's the entry point, not a library)
@@ -60,7 +62,6 @@ Output to Fusion's Text Commands panel is flaky. Use `ui.messageBox(...)` for an
 - snake_case for local variables (`selected_tokens`, `uncovered`)
 - Helper functions and module-level state prefixed with `_`
 - `ui` is module-level in `urdFusion.py`; passed to modules that need it
-- Minimal comments; only add when the *why* is non-obvious
 
 ## Testing
 
@@ -89,9 +90,22 @@ Duplicate detection runs on sanitized base names (the part before `:` in Fusion'
 
 ## Current roadmap position
 
-Completed: Hello World scaffold → toolbar button → link selection dialog (SelectionInput + Base Link dropdown) → `checkAllBodiesSelected` validation → `getUniqueLinkNames` with ROS name sanitization.
+Completed: Hello World scaffold → toolbar button → link selection dialog (SelectionInput + Base Link dropdown) → `checkAllBodiesSelected` validation → `getUniqueLinkNames` with ROS name sanitization → CSV export (mass, CoM, inertia tensor at CoM).
 
-Next: CSV/STL export (step 3 in README roadmap).
+Next: STL export and URDF XML generation.
+
+## Physical properties and unit conversion
+
+All Fusion API distances are in **cm**; mass is in **kg**; `getXYZMomentsOfInertia` returns **kg·cm²**. Convert to SI by multiplying lengths by `0.01` and inertia by `0.0001`.
+
+`getXYZMomentsOfInertia` returns a tuple `(bool, xx, yy, zz, xy, yz, xz)` — note `yz` before `xz`, not alphabetical. Values are about the **component origin**, not the CoM. Apply the parallel axis theorem to shift to CoM before exporting:
+
+```
+Ixx_com = Ixx_origin - m*(y² + z²)   # diagonal: subtract
+Ixy_com = Ixy_origin + m*(x*y)        # off-diagonal: add (because translation term is -x*y)
+```
+
+`component.physicalProperties.centerOfMass` returns the CoM in the component's local frame (relative to component origin), consistent with the inertia origin.
 
 ## Coordinate frames
 
