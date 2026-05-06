@@ -9,8 +9,8 @@ Export URDF files from Fusion360
 
 ### Running
 * Under `Add-Ins` a button for `urdFusion` is present. Press it!
-
-> ⚠️ ToDo: add instructions for link (and base link) selection. 
+* Select whether you want to export all (visible) top-level components, or you want to select them manually. If the latter, select them.
+* Choose which component will become the URDF's base link?
 
 ## Development
 * When the `urdFusion` button is pressed, all modules are reloaded. So any changes to modules will automatically be picked up.
