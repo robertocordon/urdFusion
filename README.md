@@ -2,10 +2,15 @@
 Export URDF files from Fusion360
 
 ## Usage
+### Installation
 * Create a symlink to the repo in `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns/`
 * In Fusion, go to Utilities -> Add-Ins -> Scripts and Add-Ins
 * Look for `urdFusion` and toggle on. Also check `Run on Startup`
-* Under `Add-Ins` a new button for `urdFusion` is present. Press it to run.
+
+### Running
+* Under `Add-Ins` a button for `urdFusion` is present. Press it!
+
+> ⚠️ ToDo: add instructions for link (and base link) selection. 
 
 ## Development
 * When the `urdFusion` button is pressed, all modules are reloaded. So any changes to modules will automatically be picked up.
@@ -15,8 +20,7 @@ Export URDF files from Fusion360
 
 ## Roadmap
 * Allow choosing of base link
-* Allow choosing of other links
-* Check if all visible bodies are part of selection - warn if not
+* Ensure links have unique names
 * Check if all bodies (or parent components) have a material assigned - warn if not
 * Generate CSV file with all links and their mass, center of mass and inertial vectors. 
 * Export STLs
