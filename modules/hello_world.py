@@ -1,2 +1,2 @@
-def execute():
-    print("Hello, World!")
+def execute(ui):
+    ui.messageBox("Hello, World!")
