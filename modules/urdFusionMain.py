@@ -1,5 +1,8 @@
-from modules import hello_world
+from modules import linkSelectionDialog
+
 
 def execute(ui):
-    hello_world.execute(ui)
+    def _linkSelectionComplete(components):
+        pass  # validator call goes here later
 
+    linkSelectionDialog.show(ui, _linkSelectionComplete)
