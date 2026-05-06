@@ -20,7 +20,7 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
 
     def notify(self, args):
         try:
-            hello_world.execute(ui)
+            main()
         except Exception:
             ui.messageBox(traceback.format_exc())
 
@@ -65,7 +65,6 @@ def _unregister():
 
 def run(context):
     try:
-        importlib.reload(hello_world)  # avoids stale module during development
         _register()
     except Exception:
         ui.messageBox(traceback.format_exc())
@@ -76,3 +75,8 @@ def stop(context):
         _unregister()
     except Exception:
         ui.messageBox(traceback.format_exc())
+
+def main():
+    importlib.reload(hello_world)  #avoids stale module during development
+    hello_world.execute(ui)
+
