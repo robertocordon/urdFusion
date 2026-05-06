@@ -57,14 +57,16 @@ def _buildRow(occ, link_name):
     com_y = com.y * _CM_TO_M
     com_z = com.z * _CM_TO_M
 
-    # Fusion returns (bool, ixx, iyy, izz, ixy, ixz, iyz) in kg·cm²
-    (_, ixx, iyy, izz, ixy, ixz, iyz) = props.getXYZMomentsOfInertia()
-    ixx *= _KGCM2_TO_KGM2
-    ixy *= _KGCM2_TO_KGM2
-    ixz *= _KGCM2_TO_KGM2
-    iyy *= _KGCM2_TO_KGM2
-    iyz *= _KGCM2_TO_KGM2
-    izz *= _KGCM2_TO_KGM2
+    # Fusion returns (bool, xx, yy, zz, xy, yz, xz) at the origin, in kg·cm²
+    (_, xx, yy, zz, xy, yz, xz) = props.getXYZMomentsOfInertia()
+
+    # Convert to kg·m² first, then shift from origin to CoM (parallel axis in meters)
+    ixx, iyy, izz, ixy, iyz, ixz = [v * _KGCM2_TO_KGM2 for v in [xx, yy, zz, xy, yz, xz]]
+    x, y, z = com_x, com_y, com_z
+    translation = [y**2 + z**2, x**2 + z**2, x**2 + y**2, -x*y, -y*z, -x*z]
+    ixx, iyy, izz, ixy, iyz, ixz = [
+        i - mass * t for i, t in zip([ixx, iyy, izz, ixy, iyz, ixz], translation)
+    ]
 
     return [
         occ.name, link_name,
