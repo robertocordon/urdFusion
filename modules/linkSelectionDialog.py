@@ -1,19 +1,27 @@
 import adsk.core
+import adsk.fusion
 import traceback
 
 _CMD_ID = 'urdFusion_linkSelection'
+_EXPORT_MODE_INPUT_ID = 'exportMode'
 _SELECTION_INPUT_ID = 'selection'
 _BASE_LINK_INPUT_ID = 'baseLink'
 _BASE_LINK_PLACEHOLDER = '<select one>'
+_MODE_ALL = 'All Top Level Components'
+_MODE_CUSTOM = 'Custom'
 _handlers = []
 
 
-def _rebuildBaseLinkDropdown(sel_input, base_link_input):
+def _getTopLevelOccurrences():
+    design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
+    return [occ for occ in design.rootComponent.occurrences if occ.isVisible]
+
+
+def _rebuildBaseLinkDropdown(base_link_input, occurrences):
     base_link_input.listItems.clear()
     base_link_input.listItems.add(_BASE_LINK_PLACEHOLDER, True, '')
-    for i in range(sel_input.selectionCount):
-        comp = sel_input.selection(i).entity
-        base_link_input.listItems.add(comp.name, False, '')
+    for occ in occurrences:
+        base_link_input.listItems.add(occ.name, False, '')
 
 
 class _ExecuteHandler(adsk.core.CommandEventHandler):
@@ -24,10 +32,15 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
     def notify(self, args):
         try:
             inputs = args.firingEvent.sender.commandInputs
+            mode_input = inputs.itemById(_EXPORT_MODE_INPUT_ID)
             sel_input = inputs.itemById(_SELECTION_INPUT_ID)
-            components = [sel_input.selection(i).entity for i in range(sel_input.selectionCount)]
-
             base_link_input = inputs.itemById(_BASE_LINK_INPUT_ID)
+
+            if mode_input.selectedItem.name == _MODE_ALL:
+                components = _getTopLevelOccurrences()
+            else:
+                components = [sel_input.selection(i).entity for i in range(sel_input.selectionCount)]
+
             base_link = None
             selected = base_link_input.selectedItem
             if selected and selected.index > 0:  # index 0 is the placeholder
@@ -46,13 +59,26 @@ class _InputChangedHandler(adsk.core.InputChangedEventHandler):
 
     def notify(self, args):
         try:
-            if args.input.id != _SELECTION_INPUT_ID:
-                return
-
             inputs = args.firingEvent.sender.commandInputs
+            mode_input = inputs.itemById(_EXPORT_MODE_INPUT_ID)
             sel_input = inputs.itemById(_SELECTION_INPUT_ID)
             base_link_input = inputs.itemById(_BASE_LINK_INPUT_ID)
-            _rebuildBaseLinkDropdown(sel_input, base_link_input)
+
+            if args.input.id == _EXPORT_MODE_INPUT_ID:
+                if mode_input.selectedItem.name == _MODE_ALL:
+                    sel_input.isVisible = False
+                    sel_input.setSelectionLimits(0, 0)
+                    _rebuildBaseLinkDropdown(base_link_input, _getTopLevelOccurrences())
+                else:
+                    sel_input.isVisible = True
+                    sel_input.setSelectionLimits(1, 0)
+                    occs = [sel_input.selection(i).entity for i in range(sel_input.selectionCount)]
+                    _rebuildBaseLinkDropdown(base_link_input, occs)
+
+            elif args.input.id == _SELECTION_INPUT_ID:
+                occs = [sel_input.selection(i).entity for i in range(sel_input.selectionCount)]
+                _rebuildBaseLinkDropdown(base_link_input, occs)
+
         except Exception:
             adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
 
@@ -64,10 +90,15 @@ class _ValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
     def notify(self, args):
         try:
             inputs = args.firingEvent.sender.commandInputs
+            mode_input = inputs.itemById(_EXPORT_MODE_INPUT_ID)
             sel_input = inputs.itemById(_SELECTION_INPUT_ID)
             base_link_input = inputs.itemById(_BASE_LINK_INPUT_ID)
 
-            has_links = sel_input.selectionCount > 0
+            if mode_input.selectedItem.name == _MODE_ALL:
+                has_links = len(_getTopLevelOccurrences()) > 0
+            else:
+                has_links = sel_input.selectionCount > 0
+
             selected = base_link_input.selectedItem
             has_base_link = selected is not None and selected.index > 0
 
@@ -93,16 +124,23 @@ class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
         try:
             cmd = args.command
 
+            mode_input = cmd.commandInputs.addRadioButtonGroupCommandInput(
+                _EXPORT_MODE_INPUT_ID, 'Export'
+            )
+            mode_input.listItems.add(_MODE_ALL, True)
+            mode_input.listItems.add(_MODE_CUSTOM, False)
+
             sel_input = cmd.commandInputs.addSelectionInput(
                 _SELECTION_INPUT_ID, 'Links', 'Select components to export as URDF links'
             )
             sel_input.addSelectionFilter('Occurrences')
-            sel_input.setSelectionLimits(1, 0)  # min 1, max unlimited
+            sel_input.setSelectionLimits(0, 0)  # no minimum while hidden in "All" mode
+            sel_input.isVisible = False
 
             base_link_input = cmd.commandInputs.addDropDownCommandInput(
                 _BASE_LINK_INPUT_ID, 'Base Link', adsk.core.DropDownStyles.TextListDropDownStyle
             )
-            base_link_input.listItems.add(_BASE_LINK_PLACEHOLDER, True, '')
+            _rebuildBaseLinkDropdown(base_link_input, _getTopLevelOccurrences())
 
             on_execute = _ExecuteHandler(self._on_complete)
             cmd.execute.add(on_execute)
