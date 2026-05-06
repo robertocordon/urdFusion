@@ -3,6 +3,7 @@ from modules import linkSelectionDialog
 
 def execute(ui):
     def _linkSelectionComplete(components):
-        pass  # validator call goes here later
+        names = [c.name for c in components]
+        ui.messageBox('Selected links:\n' + '\n'.join(names))
 
     linkSelectionDialog.show(ui, _linkSelectionComplete)
