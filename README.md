@@ -1,8 +1,19 @@
 # urdFusion
 Export URDF files from Fusion360
 
+## Usage
+* Create a symlink to the repo in `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns/`
+* In Fusion, go to Utilities -> Add-Ins -> Scripts and Add-Ins
+* Look for `urdFusion` and toggle on. Also check `Run on Startup`
+* Under `Add-Ins` a new button for `urdFusion` is present. Press it to run.
+
+## Development
+* When the `urdFusion` button is pressed, all modules are reloaded. So any changes to modules will automatically be picked up.
+* Changes to `urdFusion.py` will require the toggle (see [Usage](#usage)) to be turned off and back on. 
+  * The only changes there should be when a new module is added.
+  * Add the import, and then update `reloadModules`. The order matters, deeper reloads go in first.
+
 ## Roadmap
-* Run "Hello World!" from Fusion
 * Allow choosing of base link
 * Allow choosing of other links
 * Check if all visible bodies are part of selection - warn if not
