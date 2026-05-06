@@ -1,5 +1,6 @@
 import os
 import sys
+import importlib
 import traceback
 import adsk.core
 
@@ -10,6 +11,8 @@ from modules import hello_world
 
 def run(context):
     try:
+        #reload all modules - avoids issues during development
+        importlib.reload(hello_world)
 
         ui = adsk.core.Application.get().userInterface
         hello_world.execute(ui)
