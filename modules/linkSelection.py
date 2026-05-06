@@ -1,6 +1,19 @@
+import re
 import adsk.core
 import adsk.fusion
 import traceback
+
+_INVALID_CHARS = re.compile(r'[^a-z0-9_]')
+_MULTI_UNDERSCORE = re.compile(r'_+')
+_LEADING_BAD = re.compile(r'^[0-9_]+')
+
+
+def _sanitizeName(name):
+    name = name.lower()
+    name = _INVALID_CHARS.sub('_', name)
+    name = _MULTI_UNDERSCORE.sub('_', name)
+    name = _LEADING_BAD.sub('', name)
+    return name.rstrip('_')
 
 
 def checkAllBodiesSelected(components):
@@ -37,8 +50,15 @@ def getUniqueLinkNames(components):
         parsed = []
         for occ in components:
             parts = occ.name.split(':', 1)
-            base = parts[0]
+            base = _sanitizeName(parts[0])
             suffix = parts[1] if len(parts) > 1 else ''
+            if not base:
+                ui.messageBox(
+                    'Component "' + occ.name + '" produces an empty URDF link name after '
+                    'sanitization. Rename it so it contains at least one letter.',
+                    'Invalid Component Name'
+                )
+                return None
             parsed.append((base, suffix, occ))
 
         base_counts = {}
