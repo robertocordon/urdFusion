@@ -1,5 +1,8 @@
 import csv
+import os
+import shutil
 import adsk.core
+import adsk.fusion
 import traceback
 
 from modules import urdfLink as ul
@@ -13,19 +16,21 @@ _HEADER = [
 ]
 
 
-def exportCsv(ui, link_names, base_link):
+def selectExportFolder(ui):
     try:
-        dialog = ui.createFileDialog()
-        dialog.title = 'Save URDF CSV'
-        dialog.filter = 'CSV files (*.csv)'
-        dialog.initialFilename = 'urdf_links'
-        if dialog.showSave() != adsk.core.DialogResults.DialogOK:
-            return
+        dialog = ui.createFolderDialog()
+        dialog.title = 'Select Export Folder'
+        if dialog.showDialog() != adsk.core.DialogResults.DialogOK:
+            return None
+        return dialog.folder
+    except Exception:
+        ui.messageBox(traceback.format_exc())
+        return None
 
-        path = dialog.filename
-        if not path.endswith('.csv'):
-            path += '.csv'
 
+def exportCsv(ui, link_names, base_link, folder, robot_name):
+    try:
+        path = os.path.join(folder, robot_name + '.csv')
         links = ul.collectLinksData(link_names, base_link)
 
         rows = [_HEADER]
@@ -42,7 +47,61 @@ def exportCsv(ui, link_names, base_link):
         with open(path, 'w', newline='') as f:
             csv.writer(f).writerows(rows)
 
-        ui.messageBox('CSV exported to:\n' + path, 'Export Complete')
+    except Exception:
+        ui.messageBox(traceback.format_exc())
+
+
+def exportStls(ui, link_names, base_link, folder):
+    try:
+        stl_folder = os.path.join(folder, 'STL')
+        shutil.rmtree(stl_folder, ignore_errors=True)
+        os.makedirs(stl_folder)
+
+        design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
+        export_mgr = design.exportManager
+
+        links_with_hidden = []
+
+        _exportLinkStl(export_mgr, base_link, 'base_link', stl_folder)
+        if _hasHiddenBodies(base_link):
+            links_with_hidden.append('base_link')
+
+        for name, occ in sorted(
+            ((n, o) for n, o in link_names.items() if o is not base_link),
+            key=lambda item: item[0]
+        ):
+            _exportLinkStl(export_mgr, occ, name, stl_folder)
+            if _hasHiddenBodies(occ):
+                links_with_hidden.append(name)
+
+        if links_with_hidden:
+            ui.messageBox(
+                'The following links contained bodies that were hidden. '
+                'They will not be visible in the STLs, but their mass will be counted in the URDF.\n\n' +
+                '\n'.join(links_with_hidden),
+                'Hidden Bodies Warning'
+            )
 
     except Exception:
         ui.messageBox(traceback.format_exc())
+
+
+def _hasHiddenBodies(occ):
+    for body in occ.component.bRepBodies:
+        if not body.isVisible:
+            return True
+    for sub in occ.component.allOccurrences:
+        for body in sub.component.bRepBodies:
+            if not body.isVisible:
+                return True
+    return False
+
+
+def _exportLinkStl(export_mgr, occ, link_name, folder):
+    filename = os.path.join(folder, link_name + '.stl')
+    options = export_mgr.createSTLExportOptions(occ.component, filename)
+    options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
+    options.isBinaryFormat = True
+    options.sendToPrintUtility = False
+    options.unitType = adsk.fusion.DistanceUnits.MeterDistanceUnits
+    export_mgr.execute(options)

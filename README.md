@@ -3,7 +3,7 @@ Export URDF files from Fusion360
 
 ## Usage
 ### Installation
-* Create a symlink to the repo in `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns/`
+* Create a symlink to the repo in `~/Library/Application Support/Autodesk/Autodesk Fusion 360/API/AddIns/` (or just check it out there)
 * In Fusion, go to Utilities -> Add-Ins -> Scripts and Add-Ins
 * Look for `urdFusion` and toggle on. Also check `Run on Startup`
 
@@ -11,7 +11,7 @@ Export URDF files from Fusion360
 * Under `Add-Ins` a button for `urdFusion` is present. Press it!
 * Select whether you want to export all (visible) top-level components, or you want to select them manually. If the latter, select them
 * Choose which component will become the URDF's base link
-* Press Ok, and select which where to save the CSV file to
+* Press Ok, and select a directory to save the CSV and STL files to
 
 ## Development
 * When the `urdFusion` button is pressed, all modules are reloaded. So any changes to modules will automatically be picked up.
@@ -20,7 +20,6 @@ Export URDF files from Fusion360
   * Add the import, and then update `reloadModules`. The order matters, deeper reloads go in first.
 
 ## Roadmap
-* Export STLs
 * Generate URDF with all links
 * Add materials to URDF (ie colors)
 * Allow user to select colors for links
