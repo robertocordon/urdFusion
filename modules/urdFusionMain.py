@@ -20,6 +20,7 @@ def execute(ui):
 
         urdfExport.exportCsv(ui, link_names, base_link, folder, root_name)
         urdfExport.exportStls(ui, link_names, base_link, folder)
+        urdfExport.exportUrdf(ui, link_names, base_link, folder, root_name)
         ui.messageBox('URDF export complete')
 
     linkSelectionDialog.show(ui, _linkSelectionComplete)

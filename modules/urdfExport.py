@@ -1,6 +1,7 @@
 import csv
 import os
 import shutil
+import xml.etree.ElementTree as ET
 import adsk.core
 import adsk.fusion
 import traceback
@@ -81,6 +82,45 @@ def exportStls(ui, link_names, base_link, folder):
                 '\n'.join(links_with_hidden),
                 'Hidden Bodies Warning'
             )
+
+    except Exception:
+        ui.messageBox(traceback.format_exc())
+
+
+def exportUrdf(ui, link_names, base_link, folder, robot_name):
+    try:
+        links = ul.collectLinksData(link_names, base_link)
+        robot = ET.Element('robot', name=robot_name)
+
+        for lnk in links:
+            link_el = ET.SubElement(robot, 'link', name=lnk.naming.link)
+
+            inertial = ET.SubElement(link_el, 'inertial')
+            c = lnk.center_of_mass
+            ET.SubElement(inertial, 'origin',
+                          xyz=f'{c.x} {c.y} {c.z}',
+                          rpy='0 0 0')
+            ET.SubElement(inertial, 'mass', value=str(lnk.mass))
+            i = lnk.inertia
+            ET.SubElement(inertial, 'inertia',
+                          ixx=str(i.xx), ixy=str(i.xy), ixz=str(i.xz),
+                          iyy=str(i.yy), iyz=str(i.yz), izz=str(i.zz))
+
+            mesh_path = 'STL/' + lnk.naming.link + '.stl'
+            o = lnk.origin
+            origin_attrib = {'xyz': f'{o.x} {o.y} {o.z}', 'rpy': '0 0 0'}
+
+            for tag in ('visual', 'collision'):
+                el = ET.SubElement(link_el, tag)
+                ET.SubElement(el, 'origin', **origin_attrib)
+                geometry = ET.SubElement(el, 'geometry')
+                ET.SubElement(geometry, 'mesh', filename=mesh_path)
+
+        tree = ET.ElementTree(robot)
+        ET.indent(tree, space='  ')
+        path = os.path.join(folder, robot_name + '.urdf')
+        with open(path, 'wb') as f:
+            tree.write(f, encoding='utf-8', xml_declaration=True)
 
     except Exception:
         ui.messageBox(traceback.format_exc())
