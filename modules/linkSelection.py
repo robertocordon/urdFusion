@@ -19,7 +19,8 @@ def _sanitizeName(name):
 def getRootLinkName():
     try:
         design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
-        return _sanitizeName(design.rootComponent.name)
+        name = re.sub(r'\s+v\d+$', '', design.rootComponent.name)
+        return _sanitizeName(name)
     except Exception:
         adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
         return None
