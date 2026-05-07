@@ -90,6 +90,10 @@ def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot
     try:
         robot = ET.Element('robot', name=robot_name)
 
+        for mat in materials:
+            mat_el = ET.SubElement(robot, 'material', name=mat.name)
+            ET.SubElement(mat_el, 'color', rgba=_rgba(mat.rgba))
+
         for lnk in links:
             link_el = ET.SubElement(robot, 'link', name=lnk.naming.link)
 
@@ -118,6 +122,8 @@ def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot
                 ET.SubElement(el, 'origin', **vis_attrib)
                 geometry = ET.SubElement(el, 'geometry')
                 ET.SubElement(geometry, 'mesh', filename=mesh_path)
+                if tag == 'visual' and lnk.material:
+                    ET.SubElement(el, 'material', name=lnk.material)
 
         for jnt in joints:
             jel = ET.SubElement(robot, 'joint', name=jnt.name, type=jnt.urdf_type)
@@ -145,6 +151,10 @@ def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot
 
     except Exception:
         ui.messageBox(traceback.format_exc())
+
+
+def _rgba(rgba):
+    return ' '.join(f'{v:.4f}' for v in rgba)
 
 
 def _hasHiddenBodies(occ):
