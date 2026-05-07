@@ -1,5 +1,11 @@
 # Release Notes
 
+## [v0.2] (2026-05-06)
+
+> User is prompted for an output directory
+> The csv is exported into that directory
+> And STL directory is created, and an STL per link is created in it
+
 ## [v0.1] (2026-05-06)
 
 > The main UI has been implemented, it allows the choosing of the components that will become links, and the base link.
