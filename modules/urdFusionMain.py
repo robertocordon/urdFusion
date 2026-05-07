@@ -11,5 +11,6 @@ def execute(ui):
             return
 
         urdfExport.exportCsv(ui, link_names, base_link)
+        urdfExport.exportStls(ui, link_names, base_link)
 
     linkSelectionDialog.show(ui, _linkSelectionComplete)

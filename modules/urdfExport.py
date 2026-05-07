@@ -1,5 +1,7 @@
 import csv
+import os
 import adsk.core
+import adsk.fusion
 import traceback
 
 from modules import urdfLink as ul
@@ -46,3 +48,36 @@ def exportCsv(ui, link_names, base_link):
 
     except Exception:
         ui.messageBox(traceback.format_exc())
+
+
+def exportStls(ui, link_names, base_link):
+    try:
+        folder_dialog = ui.createFolderDialog()
+        folder_dialog.title = 'Select STL Export Folder'
+        if folder_dialog.showDialog() != adsk.core.DialogResults.DialogOK:
+            return
+
+        folder = folder_dialog.folder
+        design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
+        export_mgr = design.exportManager
+
+        _exportLinkStl(export_mgr, base_link, 'base_link', folder)
+        for name, occ in sorted(
+            ((n, o) for n, o in link_names.items() if o is not base_link),
+            key=lambda item: item[0]
+        ):
+            _exportLinkStl(export_mgr, occ, name, folder)
+
+        ui.messageBox('STLs exported to:\n' + folder, 'Export Complete')
+
+    except Exception:
+        ui.messageBox(traceback.format_exc())
+
+
+def _exportLinkStl(export_mgr, occ, link_name, folder):
+    filename = os.path.join(folder, link_name + '.stl')
+    options = export_mgr.createSTLExportOptions(occ.component, filename)
+    options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
+    options.isBinaryFormat = True
+    options.sendToPrintUtility = False
+    export_mgr.execute(options)
