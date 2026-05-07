@@ -80,7 +80,7 @@ def _assignSingleColor(links, color_name, registry):
 
 def _dominantMaterial(occ):
     mat_masses = {}
-    mat_colors = {}
+    mat_objects = {}
 
     bodies = list(occ.component.bRepBodies)
     for sub in occ.component.allOccurrences:
@@ -96,18 +96,24 @@ def _dominantMaterial(occ):
         except Exception:
             mass = 0.0
         mat_masses[name] = mat_masses.get(name, 0.0) + mass
-        if name not in mat_colors:
-            rgba = _getMaterialColor(mat)
-            if rgba is not None:
-                mat_colors[name] = rgba
+        if name not in mat_objects:
+            mat_objects[name] = mat
 
-    eligible = {n: m for n, m in mat_masses.items() if n in mat_colors}
-    if not eligible:
+    if not mat_masses:
         return None, None
 
-    max_mass = max(eligible.values())
-    winner = min(n for n, m in eligible.items() if m == max_mass)
-    return winner, mat_colors[winner]
+    max_mass = max(mat_masses.values())
+    winner = min(n for n, m in mat_masses.items() if m == max_mass)
+
+    rgba = _getMaterialColor(mat_objects[winner])
+    if rgba is None:
+        # Fusion couldn't expose a flat color (e.g. texture appearance); pick
+        # a deterministic palette entry from the material name so different
+        # materials still get visually distinct colors.
+        idx = sum(ord(c) for c in winner) % len(_COLORS)
+        _, rgba = _COLORS[idx]
+
+    return winner, rgba
 
 
 def _getMaterialColor(material):
@@ -115,9 +121,17 @@ def _getMaterialColor(material):
         props = material.appearance.appearanceProperties
         for i in range(props.count):
             prop = props.item(i)
-            if prop.objectType == adsk.core.AppearanceColorProperty.classType():
-                c = prop.value
+            color_prop = adsk.core.ColorProperty.cast(prop)
+            if color_prop:
+                c = color_prop.value
                 return (c.red / 255.0, c.green / 255.0, c.blue / 255.0, 1.0)
+            # Fallback: duck-type for appearances that store color differently
+            try:
+                val = prop.value
+                if hasattr(val, 'red') and hasattr(val, 'green') and hasattr(val, 'blue'):
+                    return (val.red / 255.0, val.green / 255.0, val.blue / 255.0, 1.0)
+            except Exception:
+                pass
     except Exception:
         pass
     return None
