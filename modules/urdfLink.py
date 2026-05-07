@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 
 _CM_TO_M = 0.01
@@ -18,6 +19,13 @@ class Point3:
 
 
 @dataclass
+class RPY:
+    r: float
+    p: float
+    y: float
+
+
+@dataclass
 class Inertia:
     xx: float
     xy: float
@@ -32,6 +40,7 @@ class URDFLink:
     naming: Naming
     mass: float
     origin: Point3
+    rotation: RPY
     center_of_mass: Point3
     inertia: Inertia
 
@@ -46,6 +55,9 @@ def collectLinksData(link_names, base_link):
 
 
 def _collectLinkData(occ, link_name):
+    m = occ.transform.asArray()
+    rotation = _extractRPY(m, occ.name)
+
     tf = occ.transform.translation
     origin = Point3(tf.x * _CM_TO_M, tf.y * _CM_TO_M, tf.z * _CM_TO_M)
 
@@ -69,6 +81,26 @@ def _collectLinkData(occ, link_name):
         Naming(occ.name, link_name),
         mass,
         origin,
+        rotation,
         center_of_mass,
         inertia,
     )
+
+
+def _extractRPY(m, name):
+    r00, r01, r02 = m[0], m[1], m[2]
+    r10, r11, r12 = m[4], m[5], m[6]
+    r20, r21, r22 = m[8], m[9], m[10]
+
+    sin_pitch = max(-1.0, min(1.0, -r20))
+    pitch = math.asin(sin_pitch)
+    cos_pitch = math.cos(pitch)
+
+    if abs(cos_pitch) > 1e-6:
+        roll = math.atan2(r21, r22)
+        yaw = math.atan2(r10, r00)
+    else:
+        roll = 0.0
+        yaw = math.atan2(-r01, r11)
+
+    return RPY(roll, pitch, yaw)

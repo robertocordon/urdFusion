@@ -6,7 +6,7 @@ import adsk.core
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from modules import linkSelectionDialog, linkSelection, urdfLink, urdfExport, urdFusionMain
+from modules import linkSelectionDialog, linkSelection, urdfLink, urdfJoint, urdfExport, urdFusionMain
 
 ui = adsk.core.Application.get().userInterface
 
@@ -82,6 +82,7 @@ def reloadModules():
     importlib.reload(linkSelectionDialog)
     importlib.reload(linkSelection)
     importlib.reload(urdfLink)
+    importlib.reload(urdfJoint)
     importlib.reload(urdfExport)
     importlib.reload(urdFusionMain)
 
