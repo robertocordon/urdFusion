@@ -34,7 +34,11 @@ def collectJointsData(link_names, base_link):
     occ_map = _buildOccMap(link_names, base_link)
     name_map = {occ.name: tok for tok, (_, occ) in occ_map.items()}
     relevant = _gatherRelevantJoints(design, occ_map, name_map)
+
     tree_edges = _bfsTree(base_link, relevant, occ_map)
+
+    base_t = base_link.transform.translation
+    link_frame_world = {base_link.entityToken: (base_t.x, base_t.y, base_t.z)}
 
     joints = []
     child_visual_origins = {}
@@ -42,7 +46,11 @@ def collectJointsData(link_names, base_link):
     for parent_token, child_token, joint in tree_edges:
         parent_name, parent_occ = occ_map[parent_token]
         child_name, child_occ = occ_map[child_token]
-        jdata, vis = _buildJointData(joint, parent_name, parent_occ, child_name, child_occ)
+        parent_frame_origin = link_frame_world.get(parent_token, (0.0, 0.0, 0.0))
+        jdata, vis, joint_world = _buildJointData(
+            joint, parent_name, parent_occ, child_name, child_occ, parent_frame_origin
+        )
+        link_frame_world[child_token] = joint_world
         if jdata is not None:
             joints.append(jdata)
             child_visual_origins[child_name] = vis
@@ -121,7 +129,7 @@ def _bfsTree(base_link, relevant, occ_map):
     return edges
 
 
-def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ):
+def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, parent_frame_origin):
     motion = joint.jointMotion
     jtype = motion.jointType
     JT = adsk.fusion.JointTypes
@@ -135,13 +143,13 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ):
     elif jtype == JT.CylindricalJointType:
         urdf_type = 'revolute'  # cylindrical = revolute + prismatic; ignore translation
     else:
-        return None, None  # PinSlot, Planar, Ball not supported
+        t = child_occ.transform.translation
+        return None, None, (t.x, t.y, t.z)  # PinSlot, Planar, Ball not supported
 
     pm = _parseTransform(parent_occ.transform.asArray())
     cm = _parseTransform(child_occ.transform.asArray())
 
-    # Joint frame orientation = child component orientation
-    # origin rpy = rotation of child component frame in parent component frame
+    # origin_rpy = rotation of child component frame in parent component frame
     rel_rot = _matMul(pm['rT'], cm['r'])
     origin_rpy = _matToRPY(rel_rot)
 
@@ -172,11 +180,13 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ):
                 lower, upper = -1e6, 1e6
             effort, velocity = _DEFAULT_EFFORT, _DEFAULT_VELOCITY
 
-    # Joint origin xyz: joint world point expressed in parent frame (cm → m)
-    origin_xyz = tuple(v * _CM_TO_M for v in _worldToLocal(pm, joint_world))
+    # Joint origin xyz: joint world point expressed in parent URDF link frame (cm → m).
+    # Parent link frame origin is parent_frame_origin (the parent's incoming joint world pos),
+    # not the parent component origin — these differ when component origins are at world (0,0,0).
+    diff_from_parent = tuple(joint_world[i] - parent_frame_origin[i] for i in range(3))
+    origin_xyz = tuple(v * _CM_TO_M for v in _mulRV(pm['rT'], diff_from_parent))
 
     # Visual origin for child: child component origin relative to joint frame
-    # Joint frame has origin=joint_world and orientation=child component
     diff = tuple(cm['t'][i] - joint_world[i] for i in range(3))
     vis_xyz = tuple(v * _CM_TO_M for v in _mulRV(cm['rT'], diff))
 
@@ -192,7 +202,7 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ):
         upper=upper,
         effort=effort,
         velocity=velocity,
-    ), (vis_xyz, (0.0, 0.0, 0.0))
+    ), (vis_xyz, (0.0, 0.0, 0.0)), joint_world
 
 
 def _getJointOriginWorld(joint, child_occ):
