@@ -80,4 +80,5 @@ def _exportLinkStl(export_mgr, occ, link_name, folder):
     options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
     options.isBinaryFormat = True
     options.sendToPrintUtility = False
+    options.unitType = adsk.fusion.DistanceUnits.MeterDistanceUnits
     export_mgr.execute(options)
