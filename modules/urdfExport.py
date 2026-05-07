@@ -11,6 +11,7 @@ from modules import urdfLink as ul
 _HEADER = [
     'Component Name', 'Link Name',
     'Offset X', 'Offset Y', 'Offset Z',
+    'Roll', 'Pitch', 'Yaw',
     'Mass',
     'CoM X', 'CoM Y', 'CoM Z',
     'Ixx', 'Ixy', 'Ixz', 'Iyy', 'Iyz', 'Izz',
@@ -39,6 +40,7 @@ def exportCsv(ui, link_names, base_link, folder, robot_name):
             rows.append([
                 lnk.naming.component, lnk.naming.link,
                 lnk.origin.x, lnk.origin.y, lnk.origin.z,
+                lnk.rotation.r, lnk.rotation.p, lnk.rotation.y,
                 lnk.mass,
                 lnk.center_of_mass.x, lnk.center_of_mass.y, lnk.center_of_mass.z,
                 lnk.inertia.xx, lnk.inertia.xy, lnk.inertia.xz,
@@ -108,7 +110,8 @@ def exportUrdf(ui, link_names, base_link, folder, robot_name):
 
             mesh_path = 'STL/' + lnk.naming.link + '.stl'
             o = lnk.origin
-            origin_attrib = {'xyz': f'{o.x} {o.y} {o.z}', 'rpy': '0 0 0'}
+            rot = lnk.rotation
+            origin_attrib = {'xyz': f'{o.x} {o.y} {o.z}', 'rpy': f'{rot.r} {rot.p} {rot.y}'}
 
             for tag in ('visual', 'collision'):
                 el = ET.SubElement(link_el, tag)
