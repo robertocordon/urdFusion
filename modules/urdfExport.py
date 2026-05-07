@@ -60,15 +60,41 @@ def exportStls(ui, link_names, base_link, folder):
         design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
         export_mgr = design.exportManager
 
+        links_with_hidden = []
+
         _exportLinkStl(export_mgr, base_link, 'base_link', stl_folder)
+        if _hasHiddenBodies(base_link):
+            links_with_hidden.append('base_link')
+
         for name, occ in sorted(
             ((n, o) for n, o in link_names.items() if o is not base_link),
             key=lambda item: item[0]
         ):
             _exportLinkStl(export_mgr, occ, name, stl_folder)
+            if _hasHiddenBodies(occ):
+                links_with_hidden.append(name)
+
+        if links_with_hidden:
+            ui.messageBox(
+                'The following links contained bodies that were hidden. '
+                'They will not be visible in the STLs, but their mass will be counted in the URDF.\n\n' +
+                '\n'.join(links_with_hidden),
+                'Hidden Bodies Warning'
+            )
 
     except Exception:
         ui.messageBox(traceback.format_exc())
+
+
+def _hasHiddenBodies(occ):
+    for body in occ.component.bRepBodies:
+        if not body.isVisible:
+            return True
+    for sub in occ.component.allOccurrences:
+        for body in sub.component.bRepBodies:
+            if not body.isVisible:
+                return True
+    return False
 
 
 def _exportLinkStl(export_mgr, occ, link_name, folder):
