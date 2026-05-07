@@ -15,19 +15,21 @@ _HEADER = [
 ]
 
 
-def exportCsv(ui, link_names, base_link):
+def selectExportFolder(ui):
     try:
-        dialog = ui.createFileDialog()
-        dialog.title = 'Save URDF CSV'
-        dialog.filter = 'CSV files (*.csv)'
-        dialog.initialFilename = 'urdf_links'
-        if dialog.showSave() != adsk.core.DialogResults.DialogOK:
-            return
+        dialog = ui.createFolderDialog()
+        dialog.title = 'Select Export Folder'
+        if dialog.showDialog() != adsk.core.DialogResults.DialogOK:
+            return None
+        return dialog.folder
+    except Exception:
+        ui.messageBox(traceback.format_exc())
+        return None
 
-        path = dialog.filename
-        if not path.endswith('.csv'):
-            path += '.csv'
 
+def exportCsv(ui, link_names, base_link, folder):
+    try:
+        path = os.path.join(folder, 'robot.csv')
         links = ul.collectLinksData(link_names, base_link)
 
         rows = [_HEADER]
@@ -44,31 +46,24 @@ def exportCsv(ui, link_names, base_link):
         with open(path, 'w', newline='') as f:
             csv.writer(f).writerows(rows)
 
-        ui.messageBox('CSV exported to:\n' + path, 'Export Complete')
-
     except Exception:
         ui.messageBox(traceback.format_exc())
 
 
-def exportStls(ui, link_names, base_link):
+def exportStls(ui, link_names, base_link, folder):
     try:
-        folder_dialog = ui.createFolderDialog()
-        folder_dialog.title = 'Select STL Export Folder'
-        if folder_dialog.showDialog() != adsk.core.DialogResults.DialogOK:
-            return
+        stl_folder = os.path.join(folder, 'STL')
+        os.makedirs(stl_folder, exist_ok=True)
 
-        folder = folder_dialog.folder
         design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
         export_mgr = design.exportManager
 
-        _exportLinkStl(export_mgr, base_link, 'base_link', folder)
+        _exportLinkStl(export_mgr, base_link, 'base_link', stl_folder)
         for name, occ in sorted(
             ((n, o) for n, o in link_names.items() if o is not base_link),
             key=lambda item: item[0]
         ):
-            _exportLinkStl(export_mgr, occ, name, folder)
-
-        ui.messageBox('STLs exported to:\n' + folder, 'Export Complete')
+            _exportLinkStl(export_mgr, occ, name, stl_folder)
 
     except Exception:
         ui.messageBox(traceback.format_exc())
