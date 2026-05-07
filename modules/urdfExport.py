@@ -7,6 +7,7 @@ import adsk.fusion
 import traceback
 
 from modules import urdfLink as ul
+from modules import urdfJoint as uj
 
 _HEADER = [
     'Component Name', 'Link Name',
@@ -92,6 +93,8 @@ def exportStls(ui, link_names, base_link, folder):
 def exportUrdf(ui, link_names, base_link, folder, robot_name):
     try:
         links = ul.collectLinksData(link_names, base_link)
+        joints, child_visual_origins = uj.collectJointsData(link_names, base_link)
+
         robot = ET.Element('robot', name=robot_name)
 
         for lnk in links:
@@ -109,15 +112,37 @@ def exportUrdf(ui, link_names, base_link, folder, robot_name):
                           iyy=str(i.yy), iyz=str(i.yz), izz=str(i.zz))
 
             mesh_path = 'STL/' + lnk.naming.link + '.stl'
-            o = lnk.origin
-            rot = lnk.rotation
-            origin_attrib = {'xyz': f'{o.x} {o.y} {o.z}', 'rpy': f'{rot.r} {rot.p} {rot.y}'}
+            vis_xyz, vis_rpy = child_visual_origins.get(
+                lnk.naming.link, ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+            )
+            vis_attrib = {
+                'xyz': f'{vis_xyz[0]} {vis_xyz[1]} {vis_xyz[2]}',
+                'rpy': f'{vis_rpy[0]} {vis_rpy[1]} {vis_rpy[2]}',
+            }
 
             for tag in ('visual', 'collision'):
                 el = ET.SubElement(link_el, tag)
-                ET.SubElement(el, 'origin', **origin_attrib)
+                ET.SubElement(el, 'origin', **vis_attrib)
                 geometry = ET.SubElement(el, 'geometry')
                 ET.SubElement(geometry, 'mesh', filename=mesh_path)
+
+        for jnt in joints:
+            jel = ET.SubElement(robot, 'joint', name=jnt.name, type=jnt.urdf_type)
+            ET.SubElement(jel, 'parent', link=jnt.parent_link)
+            ET.SubElement(jel, 'child', link=jnt.child_link)
+            xyz, rpy = jnt.origin_xyz, jnt.origin_rpy
+            ET.SubElement(jel, 'origin',
+                          xyz=f'{xyz[0]} {xyz[1]} {xyz[2]}',
+                          rpy=f'{rpy[0]} {rpy[1]} {rpy[2]}')
+            if jnt.axis is not None:
+                ax = jnt.axis
+                ET.SubElement(jel, 'axis', xyz=f'{ax[0]} {ax[1]} {ax[2]}')
+            if jnt.effort is not None:
+                ET.SubElement(jel, 'limit',
+                              lower=str(jnt.lower) if jnt.lower is not None else '0',
+                              upper=str(jnt.upper) if jnt.upper is not None else '0',
+                              effort=str(jnt.effort),
+                              velocity=str(jnt.velocity))
 
         tree = ET.ElementTree(robot)
         ET.indent(tree, space='  ')
