@@ -1,8 +1,8 @@
-from modules import linkSelectionDialog, linkSelection, urdfLink, urdfJoint, urdfExport
+from modules import linkSelectionDialog, linkSelection, urdfLink, urdfJoint, urdfMaterials, urdfExport
 
 
 def execute(ui):
-    def _linkSelectionComplete(components, base_link, export_stls):
+    def _linkSelectionComplete(components, base_link, export_stls, color_choice):
         if not linkSelection.checkAllBodiesSelected(components):
             return
 
@@ -20,11 +20,12 @@ def execute(ui):
 
         links = urdfLink.collectLinksData(link_names, base_link)
         joints, child_visual_origins = urdfJoint.collectJointsData(link_names, base_link)
+        materials = urdfMaterials.populateMaterials(links, joints, color_choice, link_names, base_link)
 
         urdfExport.exportCsv(ui, links, folder, root_name)
         if export_stls:
             urdfExport.exportStls(ui, link_names, base_link, folder)
-        urdfExport.exportUrdf(ui, links, joints, child_visual_origins, folder, root_name)
+        urdfExport.exportUrdf(ui, links, joints, child_visual_origins, materials, folder, root_name)
         ui.messageBox('URDF export complete')
 
     linkSelectionDialog.show(ui, _linkSelectionComplete)

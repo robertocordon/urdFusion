@@ -86,7 +86,7 @@ def exportStls(ui, link_names, base_link, folder):
         ui.messageBox(traceback.format_exc())
 
 
-def exportUrdf(ui, links, joints, child_visual_origins, folder, robot_name):
+def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot_name):
     try:
         robot = ET.Element('robot', name=robot_name)
 
