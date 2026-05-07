@@ -8,11 +8,12 @@ Thin entry point + modules pattern:
 
 - `urdFusion.py` — Fusion add-in entry point. Owns the toolbar button, command/event handler scaffolding, and module reloads. The Fusion-required `run(context)` and `stop(context)` live here. Does **not** contain export logic.
 - `modules/urdFusionMain.py` — Top-level orchestrator (`execute(ui)`). Owns the export pipeline: shows dialog, runs validation, exports. New steps in the pipeline get added here.
-- `modules/linkSelectionDialog.py` — UI module. Builds the Fusion command dialog (Links selection input, Base Link dropdown, Export STLs checkbox). Async by Fusion's design — exposes `show(ui, on_complete)` where `on_complete(components, base_link, export_stls)` is a callback fired on OK.
+- `modules/linkSelectionDialog.py` — UI module. Builds the Fusion command dialog (Export mode, Links selection input, Base Link dropdown, Export STLs checkbox, Link Colors dropdown). Async by Fusion's design — exposes `show(ui, on_complete)` where `on_complete(components, base_link, export_stls, color_choice)` is a callback fired on OK. `color_choice` is either `COLOR_MODE_MATERIAL`, `COLOR_MODE_RAINBOW`, or a palette color name string.
 - `modules/linkSelection.py` — Validation and naming logic on selected components. `checkAllBodiesSelected` verifies all visible bodies are covered. `getUniqueLinkNames` returns a `{link_name: occurrence}` dict where keys are sanitized, unique, ROS-legal names. `getRootLinkName` returns the sanitized design name (strips Fusion's trailing ` v<n>` version suffix before sanitizing). No UI ownership; shows its own dialogs for validation failures.
 - `modules/urdfLink.py` — Data model and collection logic. Defines `URDFLink` and its nested dataclasses (`Naming`, `Point3`, `Inertia`). Exposes `collectLinksData(link_names, base_link)` which returns a list of `URDFLink` objects — base link first (named `base_link`), remainder sorted by link name. All values in SI units (m, kg, kg·m²). This is the module exporters (CSV, URDF XML, etc.) should call.
 - `modules/urdfExport.py` — Export orchestration. `selectExportFolder(ui)` asks the user for a folder once; `exportCsv`, `exportStls`, and `exportUrdf` all take that folder. CSV is saved as `<robot_name>.csv` directly in the folder. STLs are saved into an `STL/` subdirectory (wiped clean before each export to remove stale files). STL export warns if any link has hidden bodies (they are excluded from the mesh but their mass is still counted). URDF is saved as `<robot_name>.urdf`.
 - `modules/urdfJoint.py` — Joint data model and collection logic. Defines `JointData`. Exposes `collectJointsData(link_names, base_link)` which returns `(joints, child_visual_origins)` — `joints` is a list of `JointData` in BFS order from base_link; `child_visual_origins` is `{link_name: (xyz_tuple, rpy_tuple)}` giving the visual mesh origin for each non-base link in its joint frame.
+- `modules/urdfMaterials.py` — Material color assignment. Exposes `getAvailableColors()` (deterministic list of `(name, rgba)` palette entries), `populateMaterials(links, joints, color_choice, link_names, base_link)` which assigns `lnk.material` on every `URDFLink` and returns a deduplicated list of `MaterialData(name, rgba)` for the materials actually used. Three modes: `COLOR_MODE_MATERIAL` (dominant physical material by mass per link; ties broken alphabetically; falls back to a palette color when Fusion can't expose an RGBA), `COLOR_MODE_RAINBOW` (depth from base_link via joints, palette wraps with modulo), or any palette color name (uniform single color).
 
 Modules in `modules/` should:
 - Not import `urdFusion.py` (it's the entry point, not a library)
@@ -52,6 +53,17 @@ The same `CommandDefinition` API powers both toolbar buttons and modal dialogs:
 - Modal dialog: `cmd_def.execute()` — fired programmatically, not added to any panel
 
 The dialog's inputs are built in the `commandCreated` handler (`cmd.commandInputs.addSelectionInput(...)`, etc.).
+
+### Material appearance color: use `ColorProperty`, not `AppearanceColorProperty`
+
+To extract a flat color from a material appearance, cast each property to `adsk.core.ColorProperty` (not `adsk.core.AppearanceColorProperty` — that class exists in the API but `.cast()` always returns `None` in practice). The value is an `adsk.core.Color` with `.red/.green/.blue` in 0–255.
+
+```python
+color_prop = adsk.core.ColorProperty.cast(prop)
+if color_prop:
+    c = color_prop.value  # adsk.core.Color
+    rgba = (c.red / 255.0, c.green / 255.0, c.blue / 255.0, 1.0)
+```
 
 ### `print()` is unreliable
 
@@ -96,10 +108,13 @@ Duplicate detection runs on sanitized base names (the part before `:` in Fusion'
 2. `getUniqueLinkNames` — resolves sanitized link names
 3. `getRootLinkName` — gets the sanitized design name for file naming
 4. `selectExportFolder` — asks user for output directory once
-5. `exportCsv` → `<folder>/<robot_name>.csv`
-6. `exportStls` → `<folder>/STL/<link_name>.stl` for each link (only if "Export STLs" checkbox is checked)
-7. `exportUrdf` → `<folder>/<robot_name>.urdf`
-8. "URDF export complete" message
+5. `collectLinksData` — builds `URDFLink` list (material field left `None`)
+6. `collectJointsData` — builds joint list and child visual origins
+7. `populateMaterials` — fills `lnk.material` on each link and returns `[MaterialData]`
+8. `exportCsv` → `<folder>/<robot_name>.csv`
+9. `exportStls` → `<folder>/STL/<link_name>.stl` for each link (only if "Export STLs" checkbox is checked)
+10. `exportUrdf` → `<folder>/<robot_name>.urdf`
+11. "URDF export complete" message
 
 ## STL export
 
@@ -109,7 +124,7 @@ STLs are exported via `design.exportManager.createSTLExportOptions(occ.component
 
 ## Current roadmap position
 
-Completed: Hello World scaffold → toolbar button → link selection dialog → validation → `getUniqueLinkNames` with ROS name sanitization → CSV export → STL export (meters, local frame, hidden-body warning) → URDF XML export with links and joints → "Export STLs" checkbox to skip slow STL export when not needed.
+Completed: Hello World scaffold → toolbar button → link selection dialog → validation → `getUniqueLinkNames` with ROS name sanitization → CSV export → STL export (meters, local frame, hidden-body warning) → URDF XML export with links and joints → "Export STLs" checkbox to skip slow STL export when not needed → material color assignment (material/rainbow/single-color modes) with URDF `<material>` elements.
 
 Next: see README roadmap.
 
@@ -146,6 +161,18 @@ Ixy_com = Ixy_origin + m*(x*y)        # off-diagonal: add (because translation t
 ```
 
 `component.physicalProperties.centerOfMass` returns the CoM in the component's local frame (relative to component origin), consistent with the inertia origin.
+
+## Material colors
+
+`urdfMaterials.py` assigns one material per link and emits `<material>` elements at the top of the URDF robot element, plus a `<material name="..."/>` reference inside each link's `<visual>`.
+
+**`COLOR_MODE_MATERIAL`** — dominant physical material by accumulated body mass within the component hierarchy. Ties broken alphabetically by material name (deterministic). Color extracted via `material.appearance.appearanceProperties` looking for `AppearanceColorProperty`. Many Fusion materials use textures or complex appearances where this API returns nothing; in that case a deterministic palette color is used instead (`sum(ord(c) for c in material_name) % len(_COLORS)`), so different Fusion materials still get visually distinct colors.
+
+**`COLOR_MODE_RAINBOW`** — BFS depth from `base_link` through joints. Base link gets palette index 0, depth-1 links get index 1, etc.; wraps with modulo when depth exceeds palette size.
+
+**Single color** — all links get the chosen palette color name.
+
+`populateMaterials` returns a deduplicated `[MaterialData]` list (only materials actually assigned to at least one link), which is passed into `exportUrdf` for the top-level definitions.
 
 ## Coordinate frames
 

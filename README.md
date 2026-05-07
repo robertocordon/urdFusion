@@ -21,7 +21,6 @@ Export URDF files from Fusion360
   * Add the import, and then update `reloadModules`. The order matters, deeper reloads go in first.
 
 ## Roadmap
-* Add materials to URDF (ie colors)
-* Allow user to select colors for links
+* Custom collision meshes
 * Change "up" axis (z by default)
 
