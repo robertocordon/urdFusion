@@ -79,11 +79,11 @@ def stop(context):
 
 #avoids stale modules during development
 def reloadModules():
+    importlib.reload(urdfMaterials)
     importlib.reload(linkSelectionDialog)
     importlib.reload(linkSelection)
     importlib.reload(urdfLink)
     importlib.reload(urdfJoint)
     importlib.reload(urdfExport)
-    importlib.reload(urdfMaterials)
     importlib.reload(urdFusionMain)
 
