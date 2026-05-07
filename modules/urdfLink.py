@@ -43,6 +43,7 @@ class URDFLink:
     rotation: RPY
     center_of_mass: Point3
     inertia: Inertia
+    material: str = None
 
 
 def collectLinksData(link_names, base_link):
