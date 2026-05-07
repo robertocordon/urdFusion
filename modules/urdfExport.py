@@ -6,9 +6,6 @@ import adsk.core
 import adsk.fusion
 import traceback
 
-from modules import urdfLink as ul
-from modules import urdfJoint as uj
-
 _HEADER = [
     'Component Name', 'Link Name',
     'Offset X', 'Offset Y', 'Offset Z',
@@ -31,10 +28,9 @@ def selectExportFolder(ui):
         return None
 
 
-def exportCsv(ui, link_names, base_link, folder, robot_name):
+def exportCsv(ui, links, folder, robot_name):
     try:
         path = os.path.join(folder, robot_name + '.csv')
-        links = ul.collectLinksData(link_names, base_link)
 
         rows = [_HEADER]
         for lnk in links:
@@ -90,11 +86,8 @@ def exportStls(ui, link_names, base_link, folder):
         ui.messageBox(traceback.format_exc())
 
 
-def exportUrdf(ui, link_names, base_link, folder, robot_name):
+def exportUrdf(ui, links, joints, child_visual_origins, folder, robot_name):
     try:
-        links = ul.collectLinksData(link_names, base_link)
-        joints, child_visual_origins = uj.collectJointsData(link_names, base_link)
-
         robot = ET.Element('robot', name=robot_name)
 
         for lnk in links:

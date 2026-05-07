@@ -1,4 +1,4 @@
-from modules import linkSelectionDialog, linkSelection, urdfExport
+from modules import linkSelectionDialog, linkSelection, urdfLink, urdfJoint, urdfExport
 
 
 def execute(ui):
@@ -18,10 +18,13 @@ def execute(ui):
         if not folder:
             return
 
-        urdfExport.exportCsv(ui, link_names, base_link, folder, root_name)
+        links = urdfLink.collectLinksData(link_names, base_link)
+        joints, child_visual_origins = urdfJoint.collectJointsData(link_names, base_link)
+
+        urdfExport.exportCsv(ui, links, folder, root_name)
         if export_stls:
             urdfExport.exportStls(ui, link_names, base_link, folder)
-        urdfExport.exportUrdf(ui, link_names, base_link, folder, root_name)
+        urdfExport.exportUrdf(ui, links, joints, child_visual_origins, folder, root_name)
         ui.messageBox('URDF export complete')
 
     linkSelectionDialog.show(ui, _linkSelectionComplete)
