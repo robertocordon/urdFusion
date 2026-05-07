@@ -8,10 +8,11 @@ Thin entry point + modules pattern:
 
 - `urdFusion.py` — Fusion add-in entry point. Owns the toolbar button, command/event handler scaffolding, and module reloads. The Fusion-required `run(context)` and `stop(context)` live here. Does **not** contain export logic.
 - `modules/urdFusionMain.py` — Top-level orchestrator (`execute(ui)`). Owns the export pipeline: shows dialog, runs validation, exports. New steps in the pipeline get added here.
-- `modules/linkSelectionDialog.py` — UI module. Builds the Fusion command dialog (Links selection input + Base Link dropdown). Async by Fusion's design — exposes `show(ui, on_complete)` where `on_complete(components, base_link)` is a callback fired on OK.
+- `modules/linkSelectionDialog.py` — UI module. Builds the Fusion command dialog (Links selection input, Base Link dropdown, Export STLs checkbox). Async by Fusion's design — exposes `show(ui, on_complete)` where `on_complete(components, base_link, export_stls)` is a callback fired on OK.
 - `modules/linkSelection.py` — Validation and naming logic on selected components. `checkAllBodiesSelected` verifies all visible bodies are covered. `getUniqueLinkNames` returns a `{link_name: occurrence}` dict where keys are sanitized, unique, ROS-legal names. `getRootLinkName` returns the sanitized design name (strips Fusion's trailing ` v<n>` version suffix before sanitizing). No UI ownership; shows its own dialogs for validation failures.
 - `modules/urdfLink.py` — Data model and collection logic. Defines `URDFLink` and its nested dataclasses (`Naming`, `Point3`, `Inertia`). Exposes `collectLinksData(link_names, base_link)` which returns a list of `URDFLink` objects — base link first (named `base_link`), remainder sorted by link name. All values in SI units (m, kg, kg·m²). This is the module exporters (CSV, URDF XML, etc.) should call.
-- `modules/urdfExport.py` — Export orchestration. `selectExportFolder(ui)` asks the user for a folder once; `exportCsv` and `exportStls` both take that folder. CSV is saved as `<robot_name>.csv` directly in the folder. STLs are saved into an `STL/` subdirectory (wiped clean before each export to remove stale files). STL export warns if any link has hidden bodies (they are excluded from the mesh but their mass is still counted).
+- `modules/urdfExport.py` — Export orchestration. `selectExportFolder(ui)` asks the user for a folder once; `exportCsv`, `exportStls`, and `exportUrdf` all take that folder. CSV is saved as `<robot_name>.csv` directly in the folder. STLs are saved into an `STL/` subdirectory (wiped clean before each export to remove stale files). STL export warns if any link has hidden bodies (they are excluded from the mesh but their mass is still counted). URDF is saved as `<robot_name>.urdf`.
+- `modules/urdfJoint.py` — Joint data model and collection logic. Defines `JointData`. Exposes `collectJointsData(link_names, base_link)` which returns `(joints, child_visual_origins)` — `joints` is a list of `JointData` in BFS order from base_link; `child_visual_origins` is `{link_name: (xyz_tuple, rpy_tuple)}` giving the visual mesh origin for each non-base link in its joint frame.
 
 Modules in `modules/` should:
 - Not import `urdFusion.py` (it's the entry point, not a library)
@@ -96,8 +97,9 @@ Duplicate detection runs on sanitized base names (the part before `:` in Fusion'
 3. `getRootLinkName` — gets the sanitized design name for file naming
 4. `selectExportFolder` — asks user for output directory once
 5. `exportCsv` → `<folder>/<robot_name>.csv`
-6. `exportStls` → `<folder>/STL/<link_name>.stl` for each link
-7. "URDF export complete" message
+6. `exportStls` → `<folder>/STL/<link_name>.stl` for each link (only if "Export STLs" checkbox is checked)
+7. `exportUrdf` → `<folder>/<robot_name>.urdf`
+8. "URDF export complete" message
 
 ## STL export
 
@@ -107,9 +109,30 @@ STLs are exported via `design.exportManager.createSTLExportOptions(occ.component
 
 ## Current roadmap position
 
-Completed: Hello World scaffold → toolbar button → link selection dialog → validation → `getUniqueLinkNames` with ROS name sanitization → CSV export → STL export (meters, local frame, hidden-body warning).
+Completed: Hello World scaffold → toolbar button → link selection dialog → validation → `getUniqueLinkNames` with ROS name sanitization → CSV export → STL export (meters, local frame, hidden-body warning) → URDF XML export with links and joints → "Export STLs" checkbox to skip slow STL export when not needed.
 
-Next: URDF XML generation.
+Next: see README roadmap.
+
+## Joint export
+
+Joints use **Option B** placement: the URDF joint frame is at the Fusion joint geometry origin (the physical pivot/slide point in world space), and the child link frame adopts the child component's orientation. This means:
+
+- `origin_rpy` = RPY of child component frame relative to parent component frame = `matToRPY(R_parent^T * R_child)`
+- `origin_xyz` = joint geometry world position expressed in the **parent's URDF link frame** (not the parent component frame). The parent's URDF link frame origin is its own incoming joint's world position — not its component origin. `link_frame_world` is tracked through the BFS to accumulate these correctly.
+- `axis` = joint axis expressed in child component frame = `R_child^T * axis_world`
+- `vis_xyz` (visual/collision origin for the child link) = child component origin expressed in joint frame = `R_child^T * (child_component_origin - joint_world)`, converted to meters
+
+Supported joint types: `fixed` (RigidJoint), `revolute` (RevoluteJoint, limits enabled), `continuous` (RevoluteJoint, no limits), `prismatic` (SliderJoint), `revolute` ignoring translation (CylindricalJoint). PinSlot, Planar, and Ball joints are skipped.
+
+Joints are collected from all components (not just root level) because joints in sub-assemblies connect sub-component actuators to structural links. BFS from base_link token determines parent→child direction regardless of how Fusion ordered the joint's occurrenceOne/Two.
+
+`_findContainingLinkToken` resolves a native occurrence (from `joint.occurrenceOne/Two`) to the selected link it belongs to by walking up `assemblyContext`. It tries `entityToken` first (works on root proxies), then falls back to `occ.name` lookup (works on native sub-occurrences).
+
+`_getJointOriginWorld` returns the joint geometry origin in world coordinates (cm). For as-built joints it uses `joint.geometry.origin`; for regular joints it uses `joint.geometryOrOriginTwo.origin`, falling back to `geometryOrOriginOne.origin`, then the child component translation.
+
+## Mirrored components
+
+Fusion bakes the mirror into the component geometry — mirrored occurrences have det(R) = +1, indistinguishable from non-mirrored occurrences by transform alone. The STL exported via `occ.component` already contains the mirrored vertices. Mirrored components work without special handling.
 
 ## Physical properties and unit conversion
 
