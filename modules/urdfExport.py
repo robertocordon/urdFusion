@@ -1,5 +1,6 @@
 import csv
 import os
+import shutil
 import adsk.core
 import adsk.fusion
 import traceback
@@ -53,7 +54,8 @@ def exportCsv(ui, link_names, base_link, folder, robot_name):
 def exportStls(ui, link_names, base_link, folder):
     try:
         stl_folder = os.path.join(folder, 'STL')
-        os.makedirs(stl_folder, exist_ok=True)
+        shutil.rmtree(stl_folder, ignore_errors=True)
+        os.makedirs(stl_folder)
 
         design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
         export_mgr = design.exportManager
