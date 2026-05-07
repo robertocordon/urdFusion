@@ -1,5 +1,10 @@
 # Release Notes
 
+## [v0.3] (2026-05-07)
+
+We now export a URDF file containing all link info and joints
+Added an checkbox to make STL export optional
+
 ## [v0.2] (2026-05-06)
 
 > User is prompted for an output directory
