@@ -1,15 +1,18 @@
 import csv
 import os
 import shutil
+import xml.etree.ElementTree as ET
 import adsk.core
 import adsk.fusion
 import traceback
 
 from modules import urdfLink as ul
+from modules import urdfJoint as uj
 
 _HEADER = [
     'Component Name', 'Link Name',
     'Offset X', 'Offset Y', 'Offset Z',
+    'Roll', 'Pitch', 'Yaw',
     'Mass',
     'CoM X', 'CoM Y', 'CoM Z',
     'Ixx', 'Ixy', 'Ixz', 'Iyy', 'Iyz', 'Izz',
@@ -38,6 +41,7 @@ def exportCsv(ui, link_names, base_link, folder, robot_name):
             rows.append([
                 lnk.naming.component, lnk.naming.link,
                 lnk.origin.x, lnk.origin.y, lnk.origin.z,
+                lnk.rotation.r, lnk.rotation.p, lnk.rotation.y,
                 lnk.mass,
                 lnk.center_of_mass.x, lnk.center_of_mass.y, lnk.center_of_mass.z,
                 lnk.inertia.xx, lnk.inertia.xy, lnk.inertia.xz,
@@ -81,6 +85,70 @@ def exportStls(ui, link_names, base_link, folder):
                 '\n'.join(links_with_hidden),
                 'Hidden Bodies Warning'
             )
+
+    except Exception:
+        ui.messageBox(traceback.format_exc())
+
+
+def exportUrdf(ui, link_names, base_link, folder, robot_name):
+    try:
+        links = ul.collectLinksData(link_names, base_link)
+        joints, child_visual_origins = uj.collectJointsData(link_names, base_link)
+
+        robot = ET.Element('robot', name=robot_name)
+
+        for lnk in links:
+            link_el = ET.SubElement(robot, 'link', name=lnk.naming.link)
+
+            inertial = ET.SubElement(link_el, 'inertial')
+            c = lnk.center_of_mass
+            ET.SubElement(inertial, 'origin',
+                          xyz=f'{c.x} {c.y} {c.z}',
+                          rpy='0 0 0')
+            ET.SubElement(inertial, 'mass', value=str(lnk.mass))
+            i = lnk.inertia
+            ET.SubElement(inertial, 'inertia',
+                          ixx=str(i.xx), ixy=str(i.xy), ixz=str(i.xz),
+                          iyy=str(i.yy), iyz=str(i.yz), izz=str(i.zz))
+
+            mesh_path = 'STL/' + lnk.naming.link + '.stl'
+            vis_xyz, vis_rpy = child_visual_origins.get(
+                lnk.naming.link, ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+            )
+            vis_attrib = {
+                'xyz': f'{vis_xyz[0]} {vis_xyz[1]} {vis_xyz[2]}',
+                'rpy': f'{vis_rpy[0]} {vis_rpy[1]} {vis_rpy[2]}',
+            }
+
+            for tag in ('visual', 'collision'):
+                el = ET.SubElement(link_el, tag)
+                ET.SubElement(el, 'origin', **vis_attrib)
+                geometry = ET.SubElement(el, 'geometry')
+                ET.SubElement(geometry, 'mesh', filename=mesh_path)
+
+        for jnt in joints:
+            jel = ET.SubElement(robot, 'joint', name=jnt.name, type=jnt.urdf_type)
+            ET.SubElement(jel, 'parent', link=jnt.parent_link)
+            ET.SubElement(jel, 'child', link=jnt.child_link)
+            xyz, rpy = jnt.origin_xyz, jnt.origin_rpy
+            ET.SubElement(jel, 'origin',
+                          xyz=f'{xyz[0]} {xyz[1]} {xyz[2]}',
+                          rpy=f'{rpy[0]} {rpy[1]} {rpy[2]}')
+            if jnt.axis is not None:
+                ax = jnt.axis
+                ET.SubElement(jel, 'axis', xyz=f'{ax[0]} {ax[1]} {ax[2]}')
+            if jnt.effort is not None:
+                ET.SubElement(jel, 'limit',
+                              lower=str(jnt.lower) if jnt.lower is not None else '0',
+                              upper=str(jnt.upper) if jnt.upper is not None else '0',
+                              effort=str(jnt.effort),
+                              velocity=str(jnt.velocity))
+
+        tree = ET.ElementTree(robot)
+        ET.indent(tree, space='  ')
+        path = os.path.join(folder, robot_name + '.urdf')
+        with open(path, 'wb') as f:
+            tree.write(f, encoding='utf-8', xml_declaration=True)
 
     except Exception:
         ui.messageBox(traceback.format_exc())
