@@ -9,9 +9,9 @@ Thin entry point + modules pattern:
 - `urdFusion.py` — Fusion add-in entry point. Owns the toolbar button, command/event handler scaffolding, and module reloads. The Fusion-required `run(context)` and `stop(context)` live here. Does **not** contain export logic.
 - `modules/urdFusionMain.py` — Top-level orchestrator (`execute(ui)`). Owns the export pipeline: shows dialog, runs validation, exports. New steps in the pipeline get added here.
 - `modules/linkSelectionDialog.py` — UI module. Builds the Fusion command dialog (Links selection input + Base Link dropdown). Async by Fusion's design — exposes `show(ui, on_complete)` where `on_complete(components, base_link)` is a callback fired on OK.
-- `modules/linkSelection.py` — Validation and naming logic on selected components. `checkAllBodiesSelected` verifies all visible bodies are covered. `getUniqueLinkNames` returns a `{link_name: occurrence}` dict where keys are sanitized, unique, ROS-legal names. No UI ownership; shows its own dialogs for validation failures.
+- `modules/linkSelection.py` — Validation and naming logic on selected components. `checkAllBodiesSelected` verifies all visible bodies are covered. `getUniqueLinkNames` returns a `{link_name: occurrence}` dict where keys are sanitized, unique, ROS-legal names. `getRootLinkName` returns the sanitized design name (strips Fusion's trailing ` v<n>` version suffix before sanitizing). No UI ownership; shows its own dialogs for validation failures.
 - `modules/urdfLink.py` — Data model and collection logic. Defines `URDFLink` and its nested dataclasses (`Naming`, `Point3`, `Inertia`). Exposes `collectLinksData(link_names, base_link)` which returns a list of `URDFLink` objects — base link first (named `base_link`), remainder sorted by link name. All values in SI units (m, kg, kg·m²). This is the module exporters (CSV, URDF XML, etc.) should call.
-- `modules/urdfExport.py` — CSV serialization. Calls `urdfLink.collectLinksData` and writes the result to a user-chosen file.
+- `modules/urdfExport.py` — Export orchestration. `selectExportFolder(ui)` asks the user for a folder once; `exportCsv` and `exportStls` both take that folder. CSV is saved as `<robot_name>.csv` directly in the folder. STLs are saved into an `STL/` subdirectory (wiped clean before each export to remove stale files). STL export warns if any link has hidden bodies (they are excluded from the mesh but their mass is still counted).
 
 Modules in `modules/` should:
 - Not import `urdFusion.py` (it's the entry point, not a library)
@@ -88,11 +88,28 @@ This enforces the strict ROS convention: names must match `[a-z][a-z0-9_]*`. A c
 
 Duplicate detection runs on sanitized base names (the part before `:` in Fusion's `occurrence.name`). When the same base appears more than once, the raw suffix (the instance counter after `:`, e.g. `1`, `2`) is appended with `_`. If two components still collide after that, it's an error.
 
+## Export pipeline
+
+`urdFusionMain.execute` runs this sequence after the dialog:
+1. `checkAllBodiesSelected` — validates coverage
+2. `getUniqueLinkNames` — resolves sanitized link names
+3. `getRootLinkName` — gets the sanitized design name for file naming
+4. `selectExportFolder` — asks user for output directory once
+5. `exportCsv` → `<folder>/<robot_name>.csv`
+6. `exportStls` → `<folder>/STL/<link_name>.stl` for each link
+7. "URDF export complete" message
+
+## STL export
+
+STLs are exported via `design.exportManager.createSTLExportOptions(occ.component, filename)`. Passing `occ.component` (not the occurrence) gives coordinates in the component's local frame, so the mesh origin matches the link origin. Settings: `MeshRefinementHigh`, binary format, `unitType = MeterDistanceUnits`, `sendToPrintUtility = False`.
+
+`component.allOccurrences` is a flat list of all nested occurrences at every depth — no manual recursion needed when checking bodies across the whole hierarchy.
+
 ## Current roadmap position
 
-Completed: Hello World scaffold → toolbar button → link selection dialog (SelectionInput + Base Link dropdown) → `checkAllBodiesSelected` validation → `getUniqueLinkNames` with ROS name sanitization → CSV export (mass, CoM, inertia tensor at CoM).
+Completed: Hello World scaffold → toolbar button → link selection dialog → validation → `getUniqueLinkNames` with ROS name sanitization → CSV export → STL export (meters, local frame, hidden-body warning).
 
-Next: STL export and URDF XML generation.
+Next: URDF XML generation.
 
 ## Physical properties and unit conversion
 
