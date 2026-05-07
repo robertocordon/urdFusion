@@ -16,6 +16,15 @@ def _sanitizeName(name):
     return name.rstrip('_')
 
 
+def getRootLinkName():
+    try:
+        design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
+        return _sanitizeName(design.rootComponent.name)
+    except Exception:
+        adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
+        return None
+
+
 def checkAllBodiesSelected(components):
     try:
         app = adsk.core.Application.get()

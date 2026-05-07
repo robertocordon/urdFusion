@@ -10,11 +10,15 @@ def execute(ui):
         if not link_names:
             return
 
+        root_name = linkSelection.getRootLinkName()
+        if not root_name:
+            return
+
         folder = urdfExport.selectExportFolder(ui)
         if not folder:
             return
 
-        urdfExport.exportCsv(ui, link_names, base_link, folder)
+        urdfExport.exportCsv(ui, link_names, base_link, folder, root_name)
         urdfExport.exportStls(ui, link_names, base_link, folder)
 
     linkSelectionDialog.show(ui, _linkSelectionComplete)

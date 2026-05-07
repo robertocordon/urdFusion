@@ -27,9 +27,9 @@ def selectExportFolder(ui):
         return None
 
 
-def exportCsv(ui, link_names, base_link, folder):
+def exportCsv(ui, link_names, base_link, folder, robot_name):
     try:
-        path = os.path.join(folder, 'robot.csv')
+        path = os.path.join(folder, robot_name + '.csv')
         links = ul.collectLinksData(link_names, base_link)
 
         rows = [_HEADER]
