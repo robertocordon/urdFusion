@@ -3,6 +3,8 @@ import adsk.core
 import adsk.fusion
 from dataclasses import dataclass
 
+from modules import utils
+
 _CM_TO_M = 0.01
 _DEFAULT_EFFORT = 100.0
 _DEFAULT_VELOCITY = 100.0
@@ -191,7 +193,7 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
     vis_xyz = tuple(v * _CM_TO_M for v in _mulRV(cm['rT'], diff))
 
     return JointData(
-        name=joint.name,
+        name=utils.sanitizeName(joint.name),
         urdf_type=urdf_type,
         parent_link=parent_name,
         child_link=child_name,
