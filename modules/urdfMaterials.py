@@ -1,0 +1,139 @@
+import adsk.core
+from dataclasses import dataclass
+
+from modules import utils
+
+COLOR_MODE_MATERIAL = 'Material Colors'
+COLOR_MODE_RAINBOW = 'Rainbow'
+
+_COLORS = [
+    ('slate_blue',   (0.180, 0.200, 0.450, 1.0)),
+    ('crimson',      (0.550, 0.070, 0.090, 1.0)),
+    ('forest_green', (0.130, 0.370, 0.180, 1.0)),
+    ('amber',        (0.800, 0.500, 0.050, 1.0)),
+    ('steel_gray',   (0.550, 0.570, 0.600, 1.0)),
+    ('plum',         (0.450, 0.150, 0.400, 1.0)),
+]
+
+
+@dataclass
+class MaterialData:
+    name: str
+    rgba: tuple
+
+
+def getAvailableColors() -> list:
+    return list(_COLORS)
+
+
+def populateMaterials(links: list, joints: list, color_choice: str, link_names: dict, base_link) -> list:
+    registry = {}  # name -> rgba
+
+    if color_choice == COLOR_MODE_MATERIAL:
+        _assignMaterialColors(links, link_names, base_link, registry)
+    elif color_choice == COLOR_MODE_RAINBOW:
+        _assignRainbowColors(links, joints, registry)
+    else:
+        _assignSingleColor(links, color_choice, registry)
+
+    seen, seen_names = [], set()
+    for lnk in links:
+        if lnk.material and lnk.material not in seen_names:
+            seen_names.add(lnk.material)
+            seen.append(MaterialData(lnk.material, registry[lnk.material]))
+    return seen
+
+
+def _assignMaterialColors(links, link_names, base_link, registry):
+    occ_map = {'base_link': base_link}
+    occ_map.update({name: occ for name, occ in link_names.items() if occ is not base_link})
+
+    for lnk in links:
+        occ = occ_map.get(lnk.naming.link)
+        if occ is None:
+            continue
+        name, rgba = _dominantMaterial(occ)
+        if name is not None:
+            lnk.material = name
+            registry[name] = rgba
+
+
+def _assignRainbowColors(links, joints, registry):
+    n = len(_COLORS)
+    depth_map = {'base_link': 0}
+    for jnt in joints:
+        depth_map[jnt.child_link] = depth_map.get(jnt.parent_link, 0) + 1
+
+    for lnk in links:
+        depth = depth_map.get(lnk.naming.link, 0)
+        color_name, rgba = _COLORS[depth % n]
+        lnk.material = color_name
+        registry[color_name] = rgba
+
+
+def _assignSingleColor(links, color_name, registry):
+    rgba = next((r for n, r in _COLORS if n == color_name), None)
+    if rgba is None:
+        return
+    registry[color_name] = rgba
+    for lnk in links:
+        lnk.material = color_name
+
+
+def _dominantMaterial(occ):
+    mat_masses = {}
+    mat_objects = {}
+
+    bodies = list(occ.component.bRepBodies)
+    for sub in occ.component.allOccurrences:
+        bodies.extend(sub.component.bRepBodies)
+
+    for body in bodies:
+        mat = body.material
+        if mat is None:
+            continue
+        name = mat.name
+        try:
+            mass = body.physicalProperties.mass
+        except Exception:
+            mass = 0.0
+        mat_masses[name] = mat_masses.get(name, 0.0) + mass
+        if name not in mat_objects:
+            mat_objects[name] = mat
+
+    if not mat_masses:
+        return None, None
+
+    max_mass = max(mat_masses.values())
+    winner = min(n for n, m in mat_masses.items() if m == max_mass)
+
+    rgba = _getMaterialColor(mat_objects[winner])  # look up by original name
+    if rgba is None:
+        # Fusion couldn't expose a flat color (e.g. texture appearance); pick
+        # a deterministic palette entry from the material name so different
+        # materials still get visually distinct colors.
+        idx = sum(ord(c) for c in winner) % len(_COLORS)
+        _, rgba = _COLORS[idx]
+
+    return utils.sanitizeName(winner), rgba
+
+
+def _getMaterialColor(material):
+    try:
+        props = material.appearance.appearanceProperties
+        for i in range(props.count):
+            prop = props.item(i)
+            color_prop = adsk.core.ColorProperty.cast(prop)
+            if color_prop:
+                c = color_prop.value
+                return (c.red / 255.0, c.green / 255.0, c.blue / 255.0, 1.0)
+            # Fallback: duck-type for appearances that store color differently
+            try:
+                val = prop.value
+                if hasattr(val, 'red') and hasattr(val, 'green') and hasattr(val, 'blue'):
+                    return (val.red / 255.0, val.green / 255.0, val.blue / 255.0, 1.0)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return None

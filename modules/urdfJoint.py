@@ -1,11 +1,17 @@
-import math
 import adsk.core
 import adsk.fusion
 from dataclasses import dataclass
 
-_CM_TO_M = 0.01
+from modules import utils
+
 _DEFAULT_EFFORT = 100.0
 _DEFAULT_VELOCITY = 100.0
+
+
+@dataclass
+class VisualOrigin:
+    xyz: tuple
+    rpy: tuple
 
 
 @dataclass
@@ -23,11 +29,11 @@ class JointData:
     velocity: float
 
 
-def collectJointsData(link_names, base_link):
+def collectJointsData(link_names: dict, base_link) -> tuple:
     """
     Returns (joints, child_visual_origins) where:
       joints:               list of JointData in BFS order from base_link
-      child_visual_origins: {link_name: (xyz_tuple, rpy_tuple)}
+      child_visual_origins: {link_name: VisualOrigin}
                             visual origin for each child link in its joint frame
     """
     design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
@@ -58,7 +64,7 @@ def collectJointsData(link_names, base_link):
     return joints, child_visual_origins
 
 
-def _buildOccMap(link_names, base_link):
+def _buildOccMap(link_names: dict, base_link) -> dict:
     m = {base_link.entityToken: ('base_link', base_link)}
     for name, occ in link_names.items():
         if occ is not base_link:
@@ -66,7 +72,7 @@ def _buildOccMap(link_names, base_link):
     return m
 
 
-def _gatherRelevantJoints(design, occ_map, name_map):
+def _gatherRelevantJoints(design, occ_map: dict, name_map: dict) -> list:
     """Returns list of (joint, link_token_1, link_token_2)."""
     seen = set()
     relevant = []
@@ -91,7 +97,7 @@ def _gatherRelevantJoints(design, occ_map, name_map):
     return relevant
 
 
-def _findContainingLinkToken(occ, occ_map, name_map):
+def _findContainingLinkToken(occ, occ_map: dict, name_map: dict):
     """Walk up the occurrence hierarchy to find the ancestor that is a selected link."""
     current = occ
     while current is not None:
@@ -107,7 +113,7 @@ def _findContainingLinkToken(occ, occ_map, name_map):
     return None
 
 
-def _bfsTree(base_link, relevant, occ_map):
+def _bfsTree(base_link, relevant: list, occ_map: dict) -> list:
     base_token = base_link.entityToken
     visited = {base_token}
     queue = [base_token]
@@ -151,7 +157,7 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
 
     # origin_rpy = rotation of child component frame in parent component frame
     rel_rot = _matMul(pm['rT'], cm['r'])
-    origin_rpy = _matToRPY(rel_rot)
+    origin_rpy = utils.matToRPY(rel_rot)
 
     if urdf_type == 'fixed':
         joint_world = cm['t']
@@ -174,8 +180,8 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
         else:  # prismatic
             lims = motion.slideLimits
             if lims.isMinimumValueEnabled and lims.isMaximumValueEnabled:
-                lower = lims.minimumValue * _CM_TO_M
-                upper = lims.maximumValue * _CM_TO_M
+                lower = lims.minimumValue * utils.CM_TO_M
+                upper = lims.maximumValue * utils.CM_TO_M
             else:
                 lower, upper = -1e6, 1e6
             effort, velocity = _DEFAULT_EFFORT, _DEFAULT_VELOCITY
@@ -184,14 +190,14 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
     # Parent link frame origin is parent_frame_origin (the parent's incoming joint world pos),
     # not the parent component origin — these differ when component origins are at world (0,0,0).
     diff_from_parent = tuple(joint_world[i] - parent_frame_origin[i] for i in range(3))
-    origin_xyz = tuple(v * _CM_TO_M for v in _mulRV(pm['rT'], diff_from_parent))
+    origin_xyz = tuple(v * utils.CM_TO_M for v in _mulRV(pm['rT'], diff_from_parent))
 
     # Visual origin for child: child component origin relative to joint frame
     diff = tuple(cm['t'][i] - joint_world[i] for i in range(3))
-    vis_xyz = tuple(v * _CM_TO_M for v in _mulRV(cm['rT'], diff))
+    vis_xyz = tuple(v * utils.CM_TO_M for v in _mulRV(cm['rT'], diff))
 
     return JointData(
-        name=joint.name,
+        name=utils.sanitizeName(joint.name),
         urdf_type=urdf_type,
         parent_link=parent_name,
         child_link=child_name,
@@ -202,10 +208,10 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
         upper=upper,
         effort=effort,
         velocity=velocity,
-    ), (vis_xyz, (0.0, 0.0, 0.0)), joint_world
+    ), VisualOrigin(vis_xyz, (0.0, 0.0, 0.0)), joint_world
 
 
-def _getJointOriginWorld(joint, child_occ):
+def _getJointOriginWorld(joint, child_occ) -> tuple:
     """Returns joint geometry origin in root component (world) coordinates, cm."""
     try:
         if isinstance(joint, adsk.fusion.AsBuiltJoint):
@@ -220,7 +226,7 @@ def _getJointOriginWorld(joint, child_occ):
     return (t.x, t.y, t.z)
 
 
-def _getAxisWorld(motion):
+def _getAxisWorld(motion) -> tuple:
     """Returns joint axis as unit vector in root component (world) coordinates."""
     try:
         if hasattr(motion, 'rotationAxisVector'):
@@ -232,7 +238,7 @@ def _getAxisWorld(motion):
         return (0.0, 0.0, 1.0)
 
 
-def _parseTransform(m):
+def _parseTransform(m: list) -> dict:
     r = [[m[0], m[1], m[2]],
          [m[4], m[5], m[6]],
          [m[8], m[9], m[10]]]
@@ -240,28 +246,10 @@ def _parseTransform(m):
     return {'r': r, 'rT': rT, 't': (m[3], m[7], m[11])}
 
 
-def _matMul(a, b):
+def _matMul(a: list, b: list) -> list:
     return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)]
             for i in range(3)]
 
 
-def _matToRPY(r):
-    sp = max(-1.0, min(1.0, -r[2][0]))
-    p = math.asin(sp)
-    cp = math.cos(p)
-    if abs(cp) > 1e-6:
-        roll = math.atan2(r[2][1], r[2][2])
-        yaw = math.atan2(r[1][0], r[0][0])
-    else:
-        roll = 0.0
-        yaw = math.atan2(-r[0][1], r[1][1])
-    return (roll, p, yaw)
-
-
-def _mulRV(rT, v):
+def _mulRV(rT: list, v: tuple) -> tuple:
     return tuple(sum(rT[i][k] * v[k] for k in range(3)) for i in range(3))
-
-
-def _worldToLocal(fm, world_pt):
-    diff = tuple(world_pt[i] - fm['t'][i] for i in range(3))
-    return _mulRV(fm['rT'], diff)

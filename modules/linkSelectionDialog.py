@@ -1,12 +1,18 @@
+import os
 import adsk.core
 import adsk.fusion
 import traceback
+
+from modules import urdfMaterials, settings
 
 _CMD_ID = 'urdFusion_linkSelection'
 _EXPORT_MODE_INPUT_ID = 'exportMode'
 _SELECTION_INPUT_ID = 'selection'
 _BASE_LINK_INPUT_ID = 'baseLink'
 _EXPORT_STLS_INPUT_ID = 'exportStls'
+_COLOR_MODE_INPUT_ID = 'colorMode'
+_EXPORT_FOLDER_INPUT_ID = 'exportFolder'
+_BROWSE_INPUT_ID = 'browse'
 _BASE_LINK_PLACEHOLDER = '<select one>'
 _MODE_ALL = 'All Top Level Components'
 _MODE_CUSTOM = 'Custom'
@@ -25,18 +31,86 @@ def _rebuildBaseLinkDropdown(base_link_input, occurrences):
         base_link_input.listItems.add(occ.name, False, '')
 
 
-class _ExecuteHandler(adsk.core.CommandEventHandler):
-    def __init__(self, on_complete):
-        super().__init__()
-        self._on_complete = on_complete
+def _handler(base_cls, fn):
+    class _H(base_cls):
+        def __init__(self):
+            super().__init__()
 
-    def notify(self, args):
-        try:
+        def notify(self, args):
+            try:
+                fn(args)
+            except Exception:
+                adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
+    return _H()
+
+
+def show(ui, on_complete) -> None:
+    cmd_def = ui.commandDefinitions.itemById(_CMD_ID)
+    if cmd_def:
+        cmd_def.deleteMe()
+
+    cmd_def = ui.commandDefinitions.addButtonDefinition(
+        _CMD_ID, 'Export URDF', 'Select components as URDF links'
+    )
+
+    def _on_created(args):
+        cmd = args.command
+        cmd.okButtonText = 'Export'
+
+        mode_input = cmd.commandInputs.addDropDownCommandInput(
+            _EXPORT_MODE_INPUT_ID, 'Export', adsk.core.DropDownStyles.TextListDropDownStyle
+        )
+        mode_input.listItems.add(_MODE_ALL, True)
+        mode_input.listItems.add(_MODE_CUSTOM, False)
+
+        sel_input = cmd.commandInputs.addSelectionInput(
+            _SELECTION_INPUT_ID, 'Links', 'Select components to export as URDF links'
+        )
+        sel_input.addSelectionFilter('Occurrences')
+        sel_input.setSelectionLimits(0, 0)  # no minimum while hidden in "All" mode
+        sel_input.isVisible = False
+
+        base_link_input = cmd.commandInputs.addDropDownCommandInput(
+            _BASE_LINK_INPUT_ID, 'Base Link', adsk.core.DropDownStyles.TextListDropDownStyle
+        )
+        _rebuildBaseLinkDropdown(base_link_input, _getTopLevelOccurrences())
+        saved_base_link = settings.getLastBaseLink()
+        if saved_base_link:
+            for i in range(base_link_input.listItems.count):
+                if base_link_input.listItems.item(i).name == saved_base_link:
+                    base_link_input.listItems.item(i).isSelected = True
+                    break
+
+        cmd.commandInputs.addBoolValueInput(_EXPORT_STLS_INPUT_ID, 'Export STLs', True, '', False)
+
+        color_input = cmd.commandInputs.addDropDownCommandInput(
+            _COLOR_MODE_INPUT_ID, 'Link Colors', adsk.core.DropDownStyles.TextListDropDownStyle
+        )
+        color_input.listItems.add(urdfMaterials.COLOR_MODE_MATERIAL, True)
+        color_input.listItems.add(urdfMaterials.COLOR_MODE_RAINBOW, False)
+        for name, _ in urdfMaterials.getAvailableColors():
+            color_input.listItems.add(name, False)
+        saved_color = settings.getLastColorMode()
+        if saved_color:
+            for i in range(color_input.listItems.count):
+                if color_input.listItems.item(i).name == saved_color:
+                    color_input.listItems.item(i).isSelected = True
+                    break
+
+        saved_folder = settings.getLastExportFolder()
+        folder_input = cmd.commandInputs.addStringValueInput(
+            _EXPORT_FOLDER_INPUT_ID, 'Export Folder', saved_folder
+        )
+        folder_input.isEnabled = False
+        cmd.commandInputs.addBoolValueInput(_BROWSE_INPUT_ID, 'Browse...', False, '', False)
+
+        def _on_execute(args):
             inputs = args.firingEvent.sender.commandInputs
             mode_input = inputs.itemById(_EXPORT_MODE_INPUT_ID)
             sel_input = inputs.itemById(_SELECTION_INPUT_ID)
             base_link_input = inputs.itemById(_BASE_LINK_INPUT_ID)
             export_stls_input = inputs.itemById(_EXPORT_STLS_INPUT_ID)
+            color_mode_input = inputs.itemById(_COLOR_MODE_INPUT_ID)
 
             if mode_input.selectedItem.name == _MODE_ALL:
                 components = _getTopLevelOccurrences()
@@ -50,17 +124,15 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
                 if 0 <= comp_idx < len(components):
                     base_link = components[comp_idx]
 
-            self._on_complete(components, base_link, export_stls_input.value)
-        except Exception:
-            adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
+            color_choice = color_mode_input.selectedItem.name
+            folder = inputs.itemById(_EXPORT_FOLDER_INPUT_ID).value
+            settings.setLastExportFolder(folder)
+            settings.setLastColorMode(color_choice)
+            if selected and selected.index > 0:
+                settings.setLastBaseLink(selected.name)
+            on_complete(components, base_link, export_stls_input.value, color_choice, folder)
 
-
-class _InputChangedHandler(adsk.core.InputChangedEventHandler):
-    def __init__(self):
-        super().__init__()
-
-    def notify(self, args):
-        try:
+        def _on_input_changed(args):
             inputs = args.firingEvent.sender.commandInputs
             mode_input = inputs.itemById(_EXPORT_MODE_INPUT_ID)
             sel_input = inputs.itemById(_SELECTION_INPUT_ID)
@@ -81,16 +153,14 @@ class _InputChangedHandler(adsk.core.InputChangedEventHandler):
                 occs = [sel_input.selection(i).entity for i in range(sel_input.selectionCount)]
                 _rebuildBaseLinkDropdown(base_link_input, occs)
 
-        except Exception:
-            adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
+            elif args.input.id == _BROWSE_INPUT_ID and args.input.value:
+                dialog = ui.createFolderDialog()
+                dialog.title = 'Select Export Folder'
+                if dialog.showDialog() == adsk.core.DialogResults.DialogOK:
+                    inputs.itemById(_EXPORT_FOLDER_INPUT_ID).value = dialog.folder
+                args.input.value = False
 
-
-class _ValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
-    def __init__(self):
-        super().__init__()
-
-    def notify(self, args):
-        try:
+        def _on_validate(args):
             inputs = args.firingEvent.sender.commandInputs
             mode_input = inputs.itemById(_EXPORT_MODE_INPUT_ID)
             sel_input = inputs.itemById(_SELECTION_INPUT_ID)
@@ -104,77 +174,32 @@ class _ValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
             selected = base_link_input.selectedItem
             has_base_link = selected is not None and selected.index > 0
 
-            args.areInputsValid = has_links and has_base_link
-        except Exception:
-            adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
+            folder = inputs.itemById(_EXPORT_FOLDER_INPUT_ID).value
+            has_folder = bool(folder) and os.path.isdir(folder)
 
+            args.areInputsValid = has_links and has_base_link and has_folder
 
-class _DestroyHandler(adsk.core.CommandEventHandler):
-    def __init__(self):
-        super().__init__()
+        def _on_destroy(args):
+            _handlers.clear()
 
-    def notify(self, args):
-        _handlers.clear()
+        h_execute = _handler(adsk.core.CommandEventHandler, _on_execute)
+        cmd.execute.add(h_execute)
+        _handlers.append(h_execute)
 
+        h_input_changed = _handler(adsk.core.InputChangedEventHandler, _on_input_changed)
+        cmd.inputChanged.add(h_input_changed)
+        _handlers.append(h_input_changed)
 
-class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
-    def __init__(self, on_complete):
-        super().__init__()
-        self._on_complete = on_complete
+        h_validate = _handler(adsk.core.ValidateInputsEventHandler, _on_validate)
+        cmd.validateInputs.add(h_validate)
+        _handlers.append(h_validate)
 
-    def notify(self, args):
-        try:
-            cmd = args.command
+        h_destroy = _handler(adsk.core.CommandEventHandler, _on_destroy)
+        cmd.destroy.add(h_destroy)
+        _handlers.append(h_destroy)
 
-            mode_input = cmd.commandInputs.addDropDownCommandInput(
-                _EXPORT_MODE_INPUT_ID, 'Export', adsk.core.DropDownStyles.TextListDropDownStyle
-            )
-            mode_input.listItems.add(_MODE_ALL, True)
-            mode_input.listItems.add(_MODE_CUSTOM, False)
-
-            sel_input = cmd.commandInputs.addSelectionInput(
-                _SELECTION_INPUT_ID, 'Links', 'Select components to export as URDF links'
-            )
-            sel_input.addSelectionFilter('Occurrences')
-            sel_input.setSelectionLimits(0, 0)  # no minimum while hidden in "All" mode
-            sel_input.isVisible = False
-
-            base_link_input = cmd.commandInputs.addDropDownCommandInput(
-                _BASE_LINK_INPUT_ID, 'Base Link', adsk.core.DropDownStyles.TextListDropDownStyle
-            )
-            _rebuildBaseLinkDropdown(base_link_input, _getTopLevelOccurrences())
-
-            cmd.commandInputs.addBoolValueInput(_EXPORT_STLS_INPUT_ID, 'Export STLs', True, '', False)
-
-            on_execute = _ExecuteHandler(self._on_complete)
-            cmd.execute.add(on_execute)
-            _handlers.append(on_execute)
-
-            on_input_changed = _InputChangedHandler()
-            cmd.inputChanged.add(on_input_changed)
-            _handlers.append(on_input_changed)
-
-            on_validate = _ValidateInputsHandler()
-            cmd.validateInputs.add(on_validate)
-            _handlers.append(on_validate)
-
-            on_destroy = _DestroyHandler()
-            cmd.destroy.add(on_destroy)
-            _handlers.append(on_destroy)
-        except Exception:
-            adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
-
-
-def show(ui, on_complete):
-    cmd_def = ui.commandDefinitions.itemById(_CMD_ID)
-    if cmd_def:
-        cmd_def.deleteMe()
-
-    cmd_def = ui.commandDefinitions.addButtonDefinition(
-        _CMD_ID, 'Export URDF', 'Select components as URDF links'
-    )
-    on_created = _CreatedHandler(on_complete)
-    cmd_def.commandCreated.add(on_created)
-    _handlers.append(on_created)
+    h_created = _handler(adsk.core.CommandCreatedEventHandler, _on_created)
+    cmd_def.commandCreated.add(h_created)
+    _handlers.append(h_created)
 
     cmd_def.execute()
