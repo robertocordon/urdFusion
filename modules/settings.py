@@ -1,7 +1,20 @@
 import json
 import os
+import platform
 
-_PATH = os.path.join(os.path.expanduser('~'), '.urdFusion', 'settings.json')
+
+def _defaultPath():
+    system = platform.system()
+    if system == 'Windows':
+        base = os.environ.get('APPDATA', os.path.expanduser('~'))
+    elif system == 'Darwin':
+        base = os.path.join(os.path.expanduser('~'), 'Library', 'Application Support')
+    else:
+        base = os.path.join(os.path.expanduser('~'), '.config')
+    return os.path.join(base, 'urdFusion', 'settings.json')
+
+
+_PATH = _defaultPath()
 
 
 def load():
