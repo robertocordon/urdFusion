@@ -9,6 +9,12 @@ _DEFAULT_VELOCITY = 100.0
 
 
 @dataclass
+class VisualOrigin:
+    xyz: tuple
+    rpy: tuple
+
+
+@dataclass
 class JointData:
     name: str
     urdf_type: str       # 'fixed', 'revolute', 'continuous', 'prismatic'
@@ -202,7 +208,7 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
         upper=upper,
         effort=effort,
         velocity=velocity,
-    ), (vis_xyz, (0.0, 0.0, 0.0)), joint_world
+    ), VisualOrigin(vis_xyz, (0.0, 0.0, 0.0)), joint_world
 
 
 def _getJointOriginWorld(joint, child_occ):

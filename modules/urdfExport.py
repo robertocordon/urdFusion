@@ -6,6 +6,10 @@ import adsk.core
 import adsk.fusion
 import traceback
 
+from modules.urdfJoint import VisualOrigin
+
+_ZERO_ORIGIN = VisualOrigin((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
 _COLLISION_BODY_NAMES = frozenset({'urdfCollision', 'urdfSameCollision'})
 
 _LINK_HEADER = [
@@ -176,12 +180,10 @@ def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot
                           iyy=str(i.yy), iyz=str(i.yz), izz=str(i.zz))
 
             mesh_path = 'STL/' + lnk.naming.link + '.stl'
-            vis_xyz, vis_rpy = child_visual_origins.get(
-                lnk.naming.link, ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
-            )
+            vis = child_visual_origins.get(lnk.naming.link, _ZERO_ORIGIN)
             vis_attrib = {
-                'xyz': f'{vis_xyz[0]} {vis_xyz[1]} {vis_xyz[2]}',
-                'rpy': f'{vis_rpy[0]} {vis_rpy[1]} {vis_rpy[2]}',
+                'xyz': f'{vis.xyz[0]} {vis.xyz[1]} {vis.xyz[2]}',
+                'rpy': f'{vis.rpy[0]} {vis.rpy[1]} {vis.rpy[2]}',
             }
 
             vis_el = ET.SubElement(link_el, 'visual')
