@@ -5,7 +5,6 @@ from dataclasses import dataclass
 
 from modules import utils
 
-_CM_TO_M = 0.01
 _DEFAULT_EFFORT = 100.0
 _DEFAULT_VELOCITY = 100.0
 
@@ -176,8 +175,8 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
         else:  # prismatic
             lims = motion.slideLimits
             if lims.isMinimumValueEnabled and lims.isMaximumValueEnabled:
-                lower = lims.minimumValue * _CM_TO_M
-                upper = lims.maximumValue * _CM_TO_M
+                lower = lims.minimumValue * utils.CM_TO_M
+                upper = lims.maximumValue * utils.CM_TO_M
             else:
                 lower, upper = -1e6, 1e6
             effort, velocity = _DEFAULT_EFFORT, _DEFAULT_VELOCITY
@@ -186,11 +185,11 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
     # Parent link frame origin is parent_frame_origin (the parent's incoming joint world pos),
     # not the parent component origin — these differ when component origins are at world (0,0,0).
     diff_from_parent = tuple(joint_world[i] - parent_frame_origin[i] for i in range(3))
-    origin_xyz = tuple(v * _CM_TO_M for v in _mulRV(pm['rT'], diff_from_parent))
+    origin_xyz = tuple(v * utils.CM_TO_M for v in _mulRV(pm['rT'], diff_from_parent))
 
     # Visual origin for child: child component origin relative to joint frame
     diff = tuple(cm['t'][i] - joint_world[i] for i in range(3))
-    vis_xyz = tuple(v * _CM_TO_M for v in _mulRV(cm['rT'], diff))
+    vis_xyz = tuple(v * utils.CM_TO_M for v in _mulRV(cm['rT'], diff))
 
     return JointData(
         name=utils.sanitizeName(joint.name),

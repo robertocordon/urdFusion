@@ -1,8 +1,7 @@
 import math
 from dataclasses import dataclass
 
-_CM_TO_M = 0.01
-_KGCM2_TO_KGM2 = _CM_TO_M ** 2
+from modules import utils
 
 
 @dataclass
@@ -61,16 +60,16 @@ def _collectLinkData(occ, link_name):
     rotation = _extractRPY(m, occ.name)
 
     tf = occ.transform.translation
-    origin = Point3(tf.x * _CM_TO_M, tf.y * _CM_TO_M, tf.z * _CM_TO_M)
+    origin = Point3(tf.x * utils.CM_TO_M, tf.y * utils.CM_TO_M, tf.z * utils.CM_TO_M)
 
     props = occ.component.physicalProperties
     mass = props.mass
 
     com = props.centerOfMass
-    center_of_mass = Point3(com.x * _CM_TO_M, com.y * _CM_TO_M, com.z * _CM_TO_M)
+    center_of_mass = Point3(com.x * utils.CM_TO_M, com.y * utils.CM_TO_M, com.z * utils.CM_TO_M)
 
     (_, xx, yy, zz, xy, yz, xz) = props.getXYZMomentsOfInertia()
-    ixx, iyy, izz, ixy, iyz, ixz = [v * _KGCM2_TO_KGM2 for v in [xx, yy, zz, xy, yz, xz]]
+    ixx, iyy, izz, ixy, iyz, ixz = [v * utils.KGCM2_TO_KGM2 for v in [xx, yy, zz, xy, yz, xz]]
 
     x, y, z = center_of_mass.x, center_of_mass.y, center_of_mass.z
     offsets = [y**2 + z**2, x**2 + z**2, x**2 + y**2, -x*y, -y*z, -x*z]

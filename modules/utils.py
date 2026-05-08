@@ -1,5 +1,8 @@
 import re
 
+CM_TO_M: float = 0.01
+KGCM2_TO_KGM2: float = CM_TO_M ** 2
+
 _INVALID_CHARS = re.compile(r'[^a-z0-9_]')
 _MULTI_UNDERSCORE = re.compile(r'_+')
 _LEADING_BAD = re.compile(r'^[0-9_]+')
