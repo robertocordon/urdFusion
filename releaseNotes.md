@@ -1,5 +1,9 @@
 # Release Notes
 
+## [v0.5] (2026-05-08)
+
+* Support for adding values for damping, friction, effort and velocity
+
 ## [v0.4] (2026-05-08)
 
 * Support for materials (ie colors) on the URDF meshes. Options include using material colors, alternating pre-set colors (rainbow), and solid single colors
