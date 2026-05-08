@@ -28,6 +28,7 @@ _JOINT_HEADER = [
     'Origin X', 'Origin Y', 'Origin Z',
     'Origin Roll', 'Origin Pitch', 'Origin Yaw',
     'Lower Limit', 'Upper Limit',
+    'Damping', 'Friction', 'Effort', 'Velocity',
 ]
 
 
@@ -54,6 +55,7 @@ def exportCsv(ui, links: list, joints: list, folder: str, robot_name: str) -> bo
         for jnt in joints:
             ax = jnt.axis
             xyz, rpy = jnt.origin_xyz, jnt.origin_rpy
+            has_limits = jnt.urdf_type not in ('fixed', 'continuous')
             rows.append([
                 jnt.name, jnt.urdf_type, jnt.parent_link, jnt.child_link,
                 ax[0] if ax else '-', ax[1] if ax else '-', ax[2] if ax else '-',
@@ -61,6 +63,10 @@ def exportCsv(ui, links: list, joints: list, folder: str, robot_name: str) -> bo
                 rpy[0], rpy[1], rpy[2],
                 jnt.lower if jnt.lower is not None else '-',
                 jnt.upper if jnt.upper is not None else '-',
+                _fmtParam(jnt.params.damping, None),
+                _fmtParam(jnt.params.friction, None),
+                jnt.params.effort if has_limits else '-',
+                jnt.params.velocity if has_limits else '-',
             ])
 
         with open(path, 'w', newline='') as f:
@@ -212,12 +218,20 @@ def exportUrdf(ui, links: list, joints: list, child_visual_origins: dict, materi
             if jnt.axis is not None:
                 ax = jnt.axis
                 ET.SubElement(jel, 'axis', xyz=f'{ax[0]} {ax[1]} {ax[2]}')
-            if jnt.effort is not None:
+            if jnt.urdf_type not in ('fixed', 'continuous'):
                 ET.SubElement(jel, 'limit',
                               lower=str(jnt.lower) if jnt.lower is not None else '0',
                               upper=str(jnt.upper) if jnt.upper is not None else '0',
-                              effort=str(jnt.effort),
-                              velocity=str(jnt.velocity))
+                              effort=str(jnt.params.effort),
+                              velocity=str(jnt.params.velocity))
+            d, f = jnt.params.damping, jnt.params.friction
+            if d is not None or f is not None:
+                dyn_attribs = {}
+                if d is not None:
+                    dyn_attribs['damping'] = str(d)
+                if f is not None:
+                    dyn_attribs['friction'] = str(f)
+                ET.SubElement(jel, 'dynamics', **dyn_attribs)
 
         tree = ET.ElementTree(robot)
         ET.indent(tree, space='  ')
@@ -229,6 +243,14 @@ def exportUrdf(ui, links: list, joints: list, child_visual_origins: dict, materi
     except Exception:
         ui.messageBox(traceback.format_exc())
         return False
+
+
+def _fmtParam(user_val, default_val) -> str:
+    if user_val is not None:
+        return user_val
+    if default_val is not None:
+        return f'default: {default_val}'
+    return '-'
 
 
 def _rgba(rgba: tuple) -> str:
