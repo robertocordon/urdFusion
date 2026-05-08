@@ -3,24 +3,14 @@ import adsk.core
 import adsk.fusion
 import traceback
 
-_INVALID_CHARS = re.compile(r'[^a-z0-9_]')
-_MULTI_UNDERSCORE = re.compile(r'_+')
-_LEADING_BAD = re.compile(r'^[0-9_]+')
-
-
-def _sanitizeName(name):
-    name = name.lower()
-    name = _INVALID_CHARS.sub('_', name)
-    name = _MULTI_UNDERSCORE.sub('_', name)
-    name = _LEADING_BAD.sub('', name)
-    return name.rstrip('_')
+from modules import utils
 
 
 def getRootLinkName():
     try:
         design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
         name = re.sub(r'\s+v\d+$', '', design.rootComponent.name)
-        return _sanitizeName(name)
+        return utils.sanitizeName(name)
     except Exception:
         adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
         return None
@@ -60,7 +50,7 @@ def getUniqueLinkNames(components):
         parsed = []
         for occ in components:
             parts = occ.name.split(':', 1)
-            base = _sanitizeName(parts[0])
+            base = utils.sanitizeName(parts[0])
             suffix = parts[1] if len(parts) > 1 else ''
             if not base:
                 ui.messageBox(
