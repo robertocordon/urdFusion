@@ -19,14 +19,18 @@ def _defaultPath():
 
 
 _PATH = _defaultPath()
+_cache = None
 
 
 def _load():
-    try:
-        with open(_PATH, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    global _cache
+    if _cache is None:
+        try:
+            with open(_PATH, 'r') as f:
+                _cache = json.load(f)
+        except Exception:
+            _cache = {}
+    return _cache
 
 
 def _save(data):
@@ -39,9 +43,9 @@ def _save(data):
 
 
 def _update(key, value):
-    data = _load()
-    data[key] = value
-    _save(data)
+    _load()  # ensure _cache is populated
+    _cache[key] = value
+    _save(_cache)
 
 
 def getLastExportFolder():
