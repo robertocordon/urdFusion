@@ -2,6 +2,8 @@ import json
 import os
 import platform
 
+_KEY_LAST_EXPORT_FOLDER = 'last_export_folder'
+
 
 def _defaultPath():
     system = platform.system()
@@ -17,7 +19,7 @@ def _defaultPath():
 _PATH = _defaultPath()
 
 
-def load():
+def _load():
     try:
         with open(_PATH, 'r') as f:
             return json.load(f)
@@ -25,10 +27,20 @@ def load():
         return {}
 
 
-def save(data):
+def _save(data):
     try:
         os.makedirs(os.path.dirname(_PATH), exist_ok=True)
         with open(_PATH, 'w') as f:
             json.dump(data, f, indent=2)
     except Exception:
         pass
+
+
+def getLastExportFolder():
+    return _load().get(_KEY_LAST_EXPORT_FOLDER, '')
+
+
+def setLastExportFolder(folder):
+    data = _load()
+    data[_KEY_LAST_EXPORT_FOLDER] = folder
+    _save(data)

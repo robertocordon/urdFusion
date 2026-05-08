@@ -59,7 +59,7 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
 
             color_choice = color_mode_input.selectedItem.name
             folder = inputs.itemById(_EXPORT_FOLDER_INPUT_ID).value
-            settings.save({'last_export_folder': folder})
+            settings.setLastExportFolder(folder)
             self._on_complete(components, base_link, export_stls_input.value, color_choice, folder)
         except Exception:
             adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
@@ -175,7 +175,7 @@ class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
             for name, _ in urdfMaterials.getAvailableColors():
                 color_input.listItems.add(name, False)
 
-            saved_folder = settings.load().get('last_export_folder', '')
+            saved_folder = settings.getLastExportFolder()
             folder_input = cmd.commandInputs.addStringValueInput(
                 _EXPORT_FOLDER_INPUT_ID, 'Export Folder', saved_folder
             )
