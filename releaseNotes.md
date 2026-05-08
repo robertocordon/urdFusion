@@ -1,5 +1,12 @@
 # Release Notes
 
+## [v0.4] (2026-05-08)
+
+* Support for materials (ie colors) on the URDF meshes. Options include using material colors, alternating pre-set colors (rainbow), and solid single colors
+* Support for custom collision meshes, or using the same mesh, or no mesh
+* A lot of quality of life improvements including dialog value persistence
+* Lots of code cleanup
+
 ## [v0.3] (2026-05-07)
 
 * We now export a URDF file containing all link info and joints
