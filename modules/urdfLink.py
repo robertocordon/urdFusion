@@ -44,6 +44,7 @@ class URDFLink:
     center_of_mass: Point3
     inertia: Inertia
     material: str = None
+    collision_mode: str = None  # None | 'same' | 'custom'
 
 
 def collectLinksData(link_names, base_link):
@@ -85,7 +86,17 @@ def _collectLinkData(occ, link_name):
         rotation,
         center_of_mass,
         inertia,
+        collision_mode=_detectCollisionMode(occ.component),
     )
+
+
+def _detectCollisionMode(component):
+    for body in component.bRepBodies:
+        if body.name == 'urdfCollision':
+            return 'custom'
+        if body.name == 'urdfSameCollision':
+            return 'same'
+    return None
 
 
 def _extractRPY(m, name):

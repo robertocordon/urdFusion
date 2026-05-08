@@ -6,6 +6,8 @@ import adsk.core
 import adsk.fusion
 import traceback
 
+_COLLISION_BODY_NAMES = frozenset({'urdfCollision', 'urdfSameCollision'})
+
 _HEADER = [
     'Component Name', 'Link Name',
     'Offset X', 'Offset Y', 'Offset Z',
@@ -51,7 +53,7 @@ def exportCsv(ui, links, folder, robot_name):
         ui.messageBox(traceback.format_exc())
 
 
-def exportStls(ui, link_names, base_link, folder):
+def exportStls(ui, links, link_names, base_link, folder):
     try:
         stl_folder = os.path.join(folder, 'STL')
         shutil.rmtree(stl_folder, ignore_errors=True)
@@ -60,19 +62,58 @@ def exportStls(ui, link_names, base_link, folder):
         design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
         export_mgr = design.exportManager
 
-        links_with_hidden = []
-
-        _exportLinkStl(export_mgr, base_link, 'base_link', stl_folder)
-        if _hasHiddenBodies(base_link):
-            links_with_hidden.append('base_link')
-
-        for name, occ in sorted(
+        link_map = {lnk.naming.link: lnk for lnk in links}
+        pairs = [('base_link', base_link)] + sorted(
             ((n, o) for n, o in link_names.items() if o is not base_link),
             key=lambda item: item[0]
-        ):
-            _exportLinkStl(export_mgr, occ, name, stl_folder)
+        )
+
+        needs_col_folder = any(
+            link_map.get(name) and link_map[name].collision_mode == 'custom'
+            for name, _ in pairs
+        )
+        col_folder = None
+        if needs_col_folder:
+            col_folder = os.path.join(stl_folder, 'collision')
+            os.makedirs(col_folder)
+
+        links_with_hidden = []
+        col_mass_warnings = []
+
+        for link_name, occ in pairs:
+            lnk = link_map.get(link_name)
+            col_mode = lnk.collision_mode if lnk else None
+
+            col_body = None
+            if col_mode in ('custom', 'same'):
+                body_name = 'urdfCollision' if col_mode == 'custom' else 'urdfSameCollision'
+                col_body = next(
+                    (b for b in occ.component.bRepBodies if b.name == body_name), None
+                )
+                if col_body:
+                    try:
+                        col_mass = col_body.physicalProperties.mass
+                        if col_mass > 1e-6:
+                            col_mass_warnings.append(
+                                f'{link_name} ({body_name}): {col_mass:.4f} kg'
+                            )
+                    except Exception:
+                        pass
+
+            saved_vis = None
+            if col_body:
+                saved_vis = col_body.isVisible
+                col_body.isVisible = False
+
+            _exportLinkStl(export_mgr, occ, link_name, stl_folder)
             if _hasHiddenBodies(occ):
-                links_with_hidden.append(name)
+                links_with_hidden.append(link_name)
+
+            if col_body:
+                if col_mode == 'custom' and col_folder:
+                    col_body.isVisible = True
+                    _exportBodyStl(export_mgr, col_body, link_name, col_folder)
+                col_body.isVisible = saved_vis
 
         if links_with_hidden:
             ui.messageBox(
@@ -80,6 +121,15 @@ def exportStls(ui, link_names, base_link, folder):
                 'They will not be visible in the STLs, but their mass will be counted in the URDF.\n\n' +
                 '\n'.join(links_with_hidden),
                 'Hidden Bodies Warning'
+            )
+
+        if col_mass_warnings:
+            ui.messageBox(
+                'The following collision bodies have non-zero mass, which will skew '
+                'inertial properties. Assign a custom near-zero-density material '
+                '(e.g. 0.001 kg/m³) to eliminate their contribution:\n\n' +
+                '\n'.join(col_mass_warnings),
+                'Collision Body Mass Warning'
             )
 
     except Exception:
@@ -117,13 +167,20 @@ def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot
                 'rpy': f'{vis_rpy[0]} {vis_rpy[1]} {vis_rpy[2]}',
             }
 
-            for tag in ('visual', 'collision'):
-                el = ET.SubElement(link_el, tag)
-                ET.SubElement(el, 'origin', **vis_attrib)
-                geometry = ET.SubElement(el, 'geometry')
-                ET.SubElement(geometry, 'mesh', filename=mesh_path)
-                if tag == 'visual' and lnk.material:
-                    ET.SubElement(el, 'material', name=lnk.material)
+            vis_el = ET.SubElement(link_el, 'visual')
+            ET.SubElement(vis_el, 'origin', **vis_attrib)
+            vis_geom = ET.SubElement(vis_el, 'geometry')
+            ET.SubElement(vis_geom, 'mesh', filename=mesh_path)
+            if lnk.material:
+                ET.SubElement(vis_el, 'material', name=lnk.material)
+
+            if lnk.collision_mode in ('same', 'custom'):
+                col_path = (mesh_path if lnk.collision_mode == 'same'
+                            else 'STL/collision/' + lnk.naming.link + '.stl')
+                col_el = ET.SubElement(link_el, 'collision')
+                ET.SubElement(col_el, 'origin', **vis_attrib)
+                col_geom = ET.SubElement(col_el, 'geometry')
+                ET.SubElement(col_geom, 'mesh', filename=col_path)
 
         for jnt in joints:
             jel = ET.SubElement(robot, 'joint', name=jnt.name, type=jnt.urdf_type)
@@ -159,7 +216,7 @@ def _rgba(rgba):
 
 def _hasHiddenBodies(occ):
     for body in occ.component.bRepBodies:
-        if not body.isVisible:
+        if body.name not in _COLLISION_BODY_NAMES and not body.isVisible:
             return True
     for sub in occ.component.allOccurrences:
         for body in sub.component.bRepBodies:
@@ -171,6 +228,16 @@ def _hasHiddenBodies(occ):
 def _exportLinkStl(export_mgr, occ, link_name, folder):
     filename = os.path.join(folder, link_name + '.stl')
     options = export_mgr.createSTLExportOptions(occ.component, filename)
+    options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
+    options.isBinaryFormat = True
+    options.sendToPrintUtility = False
+    options.unitType = adsk.fusion.DistanceUnits.MeterDistanceUnits
+    export_mgr.execute(options)
+
+
+def _exportBodyStl(export_mgr, body, link_name, folder):
+    filename = os.path.join(folder, link_name + '.stl')
+    options = export_mgr.createSTLExportOptions(body, filename)
     options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
     options.isBinaryFormat = True
     options.sendToPrintUtility = False
