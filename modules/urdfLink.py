@@ -1,8 +1,6 @@
-import math
 from dataclasses import dataclass
 
-_CM_TO_M = 0.01
-_KGCM2_TO_KGM2 = _CM_TO_M ** 2
+from modules import utils
 
 
 @dataclass
@@ -47,7 +45,7 @@ class URDFLink:
     collision_mode: str = None  # None | 'same' | 'custom'
 
 
-def collectLinksData(link_names, base_link):
+def collectLinksData(link_names: dict, base_link) -> list:
     base = _collectLinkData(base_link, 'base_link')
     rest = sorted(
         [_collectLinkData(occ, name) for name, occ in link_names.items() if occ is not base_link],
@@ -56,21 +54,21 @@ def collectLinksData(link_names, base_link):
     return [base] + rest
 
 
-def _collectLinkData(occ, link_name):
+def _collectLinkData(occ, link_name: str) -> URDFLink:
     m = occ.transform.asArray()
-    rotation = _extractRPY(m, occ.name)
+    rotation = _extractRPY(m)
 
     tf = occ.transform.translation
-    origin = Point3(tf.x * _CM_TO_M, tf.y * _CM_TO_M, tf.z * _CM_TO_M)
+    origin = Point3(tf.x * utils.CM_TO_M, tf.y * utils.CM_TO_M, tf.z * utils.CM_TO_M)
 
     props = occ.component.physicalProperties
     mass = props.mass
 
     com = props.centerOfMass
-    center_of_mass = Point3(com.x * _CM_TO_M, com.y * _CM_TO_M, com.z * _CM_TO_M)
+    center_of_mass = Point3(com.x * utils.CM_TO_M, com.y * utils.CM_TO_M, com.z * utils.CM_TO_M)
 
     (_, xx, yy, zz, xy, yz, xz) = props.getXYZMomentsOfInertia()
-    ixx, iyy, izz, ixy, iyz, ixz = [v * _KGCM2_TO_KGM2 for v in [xx, yy, zz, xy, yz, xz]]
+    ixx, iyy, izz, ixy, iyz, ixz = [v * utils.KGCM2_TO_KGM2 for v in [xx, yy, zz, xy, yz, xz]]
 
     x, y, z = center_of_mass.x, center_of_mass.y, center_of_mass.z
     offsets = [y**2 + z**2, x**2 + z**2, x**2 + y**2, -x*y, -y*z, -x*z]
@@ -90,7 +88,7 @@ def _collectLinkData(occ, link_name):
     )
 
 
-def _detectCollisionMode(component):
+def _detectCollisionMode(component) -> str:
     for body in component.bRepBodies:
         if body.name == 'urdfCollision':
             return 'custom'
@@ -99,20 +97,9 @@ def _detectCollisionMode(component):
     return None
 
 
-def _extractRPY(m, name):
-    r00, r01, r02 = m[0], m[1], m[2]
-    r10, r11, r12 = m[4], m[5], m[6]
-    r20, r21, r22 = m[8], m[9], m[10]
-
-    sin_pitch = max(-1.0, min(1.0, -r20))
-    pitch = math.asin(sin_pitch)
-    cos_pitch = math.cos(pitch)
-
-    if abs(cos_pitch) > 1e-6:
-        roll = math.atan2(r21, r22)
-        yaw = math.atan2(r10, r00)
-    else:
-        roll = 0.0
-        yaw = math.atan2(-r01, r11)
-
+def _extractRPY(m: list) -> RPY:
+    r = [[m[0], m[1], m[2]],
+         [m[4], m[5], m[6]],
+         [m[8], m[9], m[10]]]
+    roll, pitch, yaw = utils.matToRPY(r)
     return RPY(roll, pitch, yaw)

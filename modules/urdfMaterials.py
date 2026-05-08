@@ -1,6 +1,8 @@
 import adsk.core
 from dataclasses import dataclass
 
+from modules import utils
+
 COLOR_MODE_MATERIAL = 'Material Colors'
 COLOR_MODE_RAINBOW = 'Rainbow'
 
@@ -20,11 +22,11 @@ class MaterialData:
     rgba: tuple
 
 
-def getAvailableColors():
+def getAvailableColors() -> list:
     return list(_COLORS)
 
 
-def populateMaterials(links, joints, color_choice, link_names, base_link):
+def populateMaterials(links: list, joints: list, color_choice: str, link_names: dict, base_link) -> list:
     registry = {}  # name -> rgba
 
     if color_choice == COLOR_MODE_MATERIAL:
@@ -105,7 +107,7 @@ def _dominantMaterial(occ):
     max_mass = max(mat_masses.values())
     winner = min(n for n, m in mat_masses.items() if m == max_mass)
 
-    rgba = _getMaterialColor(mat_objects[winner])
+    rgba = _getMaterialColor(mat_objects[winner])  # look up by original name
     if rgba is None:
         # Fusion couldn't expose a flat color (e.g. texture appearance); pick
         # a deterministic palette entry from the material name so different
@@ -113,7 +115,7 @@ def _dominantMaterial(occ):
         idx = sum(ord(c) for c in winner) % len(_COLORS)
         _, rgba = _COLORS[idx]
 
-    return winner, rgba
+    return utils.sanitizeName(winner), rgba
 
 
 def _getMaterialColor(material):

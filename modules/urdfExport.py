@@ -6,35 +6,37 @@ import adsk.core
 import adsk.fusion
 import traceback
 
+from modules.urdfJoint import VisualOrigin
+
+_ZERO_ORIGIN = VisualOrigin((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+
 _COLLISION_BODY_NAMES = frozenset({'urdfCollision', 'urdfSameCollision'})
 
-_HEADER = [
+_LINK_HEADER = [
     'Component Name', 'Link Name',
     'Offset X', 'Offset Y', 'Offset Z',
     'Roll', 'Pitch', 'Yaw',
     'Mass',
     'CoM X', 'CoM Y', 'CoM Z',
     'Ixx', 'Ixy', 'Ixz', 'Iyy', 'Iyz', 'Izz',
+    'Collision Mesh', 'Material',
+]
+
+_JOINT_HEADER = [
+    'Joint Name', 'Joint Type', 'Parent', 'Child',
+    'Axis X', 'Axis Y', 'Axis Z',
+    'Origin X', 'Origin Y', 'Origin Z',
+    'Origin Roll', 'Origin Pitch', 'Origin Yaw',
+    'Lower Limit', 'Upper Limit',
 ]
 
 
-def selectExportFolder(ui):
-    try:
-        dialog = ui.createFolderDialog()
-        dialog.title = 'Select Export Folder'
-        if dialog.showDialog() != adsk.core.DialogResults.DialogOK:
-            return None
-        return dialog.folder
-    except Exception:
-        ui.messageBox(traceback.format_exc())
-        return None
 
-
-def exportCsv(ui, links, folder, robot_name):
+def exportCsv(ui, links: list, joints: list, folder: str, robot_name: str) -> bool:
     try:
         path = os.path.join(folder, robot_name + '.csv')
 
-        rows = [_HEADER]
+        rows = [_LINK_HEADER]
         for lnk in links:
             rows.append([
                 lnk.naming.component, lnk.naming.link,
@@ -44,16 +46,33 @@ def exportCsv(ui, links, folder, robot_name):
                 lnk.center_of_mass.x, lnk.center_of_mass.y, lnk.center_of_mass.z,
                 lnk.inertia.xx, lnk.inertia.xy, lnk.inertia.xz,
                 lnk.inertia.yy, lnk.inertia.yz, lnk.inertia.zz,
+                lnk.collision_mode or 'none', lnk.material or '',
+            ])
+
+        rows.append([])
+        rows.append(_JOINT_HEADER)
+        for jnt in joints:
+            ax = jnt.axis
+            xyz, rpy = jnt.origin_xyz, jnt.origin_rpy
+            rows.append([
+                jnt.name, jnt.urdf_type, jnt.parent_link, jnt.child_link,
+                ax[0] if ax else '-', ax[1] if ax else '-', ax[2] if ax else '-',
+                xyz[0], xyz[1], xyz[2],
+                rpy[0], rpy[1], rpy[2],
+                jnt.lower if jnt.lower is not None else '-',
+                jnt.upper if jnt.upper is not None else '-',
             ])
 
         with open(path, 'w', newline='') as f:
             csv.writer(f).writerows(rows)
 
+        return True
     except Exception:
         ui.messageBox(traceback.format_exc())
+        return False
 
 
-def exportStls(ui, links, link_names, base_link, folder):
+def exportStls(ui, links: list, link_names: dict, base_link, folder: str) -> bool:
     try:
         stl_folder = os.path.join(folder, 'STL')
         shutil.rmtree(stl_folder, ignore_errors=True)
@@ -105,14 +124,14 @@ def exportStls(ui, links, link_names, base_link, folder):
                 saved_vis = col_body.isVisible
                 col_body.isVisible = False
 
-            _exportLinkStl(export_mgr, occ, link_name, stl_folder)
+            _exportStl(export_mgr, occ.component, link_name, stl_folder)
             if _hasHiddenBodies(occ):
                 links_with_hidden.append(link_name)
 
             if col_body:
                 if col_mode == 'custom' and col_folder:
                     col_body.isVisible = True
-                    _exportBodyStl(export_mgr, col_body, link_name, col_folder)
+                    _exportStl(export_mgr, col_body, link_name, col_folder)
                 col_body.isVisible = saved_vis
 
         if links_with_hidden:
@@ -132,11 +151,13 @@ def exportStls(ui, links, link_names, base_link, folder):
                 'Collision Body Mass Warning'
             )
 
+        return True
     except Exception:
         ui.messageBox(traceback.format_exc())
+        return False
 
 
-def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot_name):
+def exportUrdf(ui, links: list, joints: list, child_visual_origins: dict, materials: list, folder: str, robot_name: str) -> bool:
     try:
         robot = ET.Element('robot', name=robot_name)
 
@@ -159,12 +180,10 @@ def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot
                           iyy=str(i.yy), iyz=str(i.yz), izz=str(i.zz))
 
             mesh_path = 'STL/' + lnk.naming.link + '.stl'
-            vis_xyz, vis_rpy = child_visual_origins.get(
-                lnk.naming.link, ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
-            )
+            vis = child_visual_origins.get(lnk.naming.link, _ZERO_ORIGIN)
             vis_attrib = {
-                'xyz': f'{vis_xyz[0]} {vis_xyz[1]} {vis_xyz[2]}',
-                'rpy': f'{vis_rpy[0]} {vis_rpy[1]} {vis_rpy[2]}',
+                'xyz': f'{vis.xyz[0]} {vis.xyz[1]} {vis.xyz[2]}',
+                'rpy': f'{vis.rpy[0]} {vis.rpy[1]} {vis.rpy[2]}',
             }
 
             vis_el = ET.SubElement(link_el, 'visual')
@@ -206,15 +225,17 @@ def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot
         with open(path, 'wb') as f:
             tree.write(f, encoding='utf-8', xml_declaration=True)
 
+        return True
     except Exception:
         ui.messageBox(traceback.format_exc())
+        return False
 
 
-def _rgba(rgba):
+def _rgba(rgba: tuple) -> str:
     return ' '.join(f'{v:.4f}' for v in rgba)
 
 
-def _hasHiddenBodies(occ):
+def _hasHiddenBodies(occ) -> bool:
     for body in occ.component.bRepBodies:
         if body.name not in _COLLISION_BODY_NAMES and not body.isVisible:
             return True
@@ -225,19 +246,9 @@ def _hasHiddenBodies(occ):
     return False
 
 
-def _exportLinkStl(export_mgr, occ, link_name, folder):
+def _exportStl(export_mgr, entity, link_name: str, folder: str) -> None:
     filename = os.path.join(folder, link_name + '.stl')
-    options = export_mgr.createSTLExportOptions(occ.component, filename)
-    options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
-    options.isBinaryFormat = True
-    options.sendToPrintUtility = False
-    options.unitType = adsk.fusion.DistanceUnits.MeterDistanceUnits
-    export_mgr.execute(options)
-
-
-def _exportBodyStl(export_mgr, body, link_name, folder):
-    filename = os.path.join(folder, link_name + '.stl')
-    options = export_mgr.createSTLExportOptions(body, filename)
+    options = export_mgr.createSTLExportOptions(entity, filename)
     options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
     options.isBinaryFormat = True
     options.sendToPrintUtility = False
