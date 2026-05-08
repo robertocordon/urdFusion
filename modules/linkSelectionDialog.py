@@ -55,6 +55,7 @@ def show(ui, on_complete) -> None:
 
     def _on_created(args):
         cmd = args.command
+        cmd.okButtonText = 'Export'
 
         mode_input = cmd.commandInputs.addDropDownCommandInput(
             _EXPORT_MODE_INPUT_ID, 'Export', adsk.core.DropDownStyles.TextListDropDownStyle
