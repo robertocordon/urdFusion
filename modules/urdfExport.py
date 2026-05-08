@@ -27,17 +27,6 @@ _JOINT_HEADER = [
 ]
 
 
-def selectExportFolder(ui):
-    try:
-        dialog = ui.createFolderDialog()
-        dialog.title = 'Select Export Folder'
-        if dialog.showDialog() != adsk.core.DialogResults.DialogOK:
-            return None
-        return dialog.folder
-    except Exception:
-        ui.messageBox(traceback.format_exc())
-        return None
-
 
 def exportCsv(ui, links, joints, folder, robot_name):
     try:

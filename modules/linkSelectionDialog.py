@@ -1,8 +1,9 @@
+import os
 import adsk.core
 import adsk.fusion
 import traceback
 
-from modules import urdfMaterials
+from modules import urdfMaterials, settings
 
 _CMD_ID = 'urdFusion_linkSelection'
 _EXPORT_MODE_INPUT_ID = 'exportMode'
@@ -10,6 +11,8 @@ _SELECTION_INPUT_ID = 'selection'
 _BASE_LINK_INPUT_ID = 'baseLink'
 _EXPORT_STLS_INPUT_ID = 'exportStls'
 _COLOR_MODE_INPUT_ID = 'colorMode'
+_EXPORT_FOLDER_INPUT_ID = 'exportFolder'
+_BROWSE_INPUT_ID = 'browse'
 _BASE_LINK_PLACEHOLDER = '<select one>'
 _MODE_ALL = 'All Top Level Components'
 _MODE_CUSTOM = 'Custom'
@@ -55,7 +58,9 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
                     base_link = components[comp_idx]
 
             color_choice = color_mode_input.selectedItem.name
-            self._on_complete(components, base_link, export_stls_input.value, color_choice)
+            folder = inputs.itemById(_EXPORT_FOLDER_INPUT_ID).value
+            settings.save({'last_export_folder': folder})
+            self._on_complete(components, base_link, export_stls_input.value, color_choice, folder)
         except Exception:
             adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
 
@@ -86,6 +91,14 @@ class _InputChangedHandler(adsk.core.InputChangedEventHandler):
                 occs = [sel_input.selection(i).entity for i in range(sel_input.selectionCount)]
                 _rebuildBaseLinkDropdown(base_link_input, occs)
 
+            elif args.input.id == _BROWSE_INPUT_ID and args.input.value:
+                ui = adsk.core.Application.get().userInterface
+                dialog = ui.createFolderDialog()
+                dialog.title = 'Select Export Folder'
+                if dialog.showDialog() == adsk.core.DialogResults.DialogOK:
+                    inputs.itemById(_EXPORT_FOLDER_INPUT_ID).value = dialog.folder
+                args.input.value = False
+
         except Exception:
             adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
 
@@ -109,7 +122,10 @@ class _ValidateInputsHandler(adsk.core.ValidateInputsEventHandler):
             selected = base_link_input.selectedItem
             has_base_link = selected is not None and selected.index > 0
 
-            args.areInputsValid = has_links and has_base_link
+            folder = inputs.itemById(_EXPORT_FOLDER_INPUT_ID).value
+            has_folder = bool(folder) and os.path.isdir(folder)
+
+            args.areInputsValid = has_links and has_base_link and has_folder
         except Exception:
             adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
 
@@ -158,6 +174,13 @@ class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
             color_input.listItems.add(urdfMaterials.COLOR_MODE_RAINBOW, False)
             for name, _ in urdfMaterials.getAvailableColors():
                 color_input.listItems.add(name, False)
+
+            saved_folder = settings.load().get('last_export_folder', '')
+            folder_input = cmd.commandInputs.addStringValueInput(
+                _EXPORT_FOLDER_INPUT_ID, 'Export Folder', saved_folder
+            )
+            folder_input.isEnabled = False
+            cmd.commandInputs.addBoolValueInput(_BROWSE_INPUT_ID, 'Browse...', False, '', False)
 
             on_execute = _ExecuteHandler(self._on_complete)
             cmd.execute.add(on_execute)

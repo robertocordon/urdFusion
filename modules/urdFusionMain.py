@@ -2,7 +2,7 @@ from modules import linkSelectionDialog, linkSelection, urdfLink, urdfJoint, urd
 
 
 def execute(ui):
-    def _linkSelectionComplete(components, base_link, export_stls, color_choice):
+    def _linkSelectionComplete(components, base_link, export_stls, color_choice, folder):
         if not linkSelection.checkAllBodiesSelected(components):
             return
 
@@ -12,10 +12,6 @@ def execute(ui):
 
         root_name = linkSelection.getRootLinkName()
         if not root_name:
-            return
-
-        folder = urdfExport.selectExportFolder(ui)
-        if not folder:
             return
 
         links = urdfLink.collectLinksData(link_names, base_link)
