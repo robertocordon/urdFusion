@@ -32,7 +32,7 @@ _JOINT_HEADER = [
 
 
 
-def exportCsv(ui, links, joints, folder, robot_name):
+def exportCsv(ui, links: list, joints: list, folder: str, robot_name: str) -> bool:
     try:
         path = os.path.join(folder, robot_name + '.csv')
 
@@ -72,7 +72,7 @@ def exportCsv(ui, links, joints, folder, robot_name):
         return False
 
 
-def exportStls(ui, links, link_names, base_link, folder):
+def exportStls(ui, links: list, link_names: dict, base_link, folder: str) -> bool:
     try:
         stl_folder = os.path.join(folder, 'STL')
         shutil.rmtree(stl_folder, ignore_errors=True)
@@ -157,7 +157,7 @@ def exportStls(ui, links, link_names, base_link, folder):
         return False
 
 
-def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot_name):
+def exportUrdf(ui, links: list, joints: list, child_visual_origins: dict, materials: list, folder: str, robot_name: str) -> bool:
     try:
         robot = ET.Element('robot', name=robot_name)
 
@@ -231,11 +231,11 @@ def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot
         return False
 
 
-def _rgba(rgba):
+def _rgba(rgba: tuple) -> str:
     return ' '.join(f'{v:.4f}' for v in rgba)
 
 
-def _hasHiddenBodies(occ):
+def _hasHiddenBodies(occ) -> bool:
     for body in occ.component.bRepBodies:
         if body.name not in _COLLISION_BODY_NAMES and not body.isVisible:
             return True
@@ -246,7 +246,7 @@ def _hasHiddenBodies(occ):
     return False
 
 
-def _exportStl(export_mgr, entity, link_name, folder):
+def _exportStl(export_mgr, entity, link_name: str, folder: str) -> None:
     filename = os.path.join(folder, link_name + '.stl')
     options = export_mgr.createSTLExportOptions(entity, filename)
     options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh

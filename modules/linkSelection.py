@@ -6,7 +6,7 @@ import traceback
 from modules import utils
 
 
-def getRootLinkName():
+def getRootLinkName() -> str:
     try:
         design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
         name = re.sub(r'\s+v\d+$', '', design.rootComponent.name)
@@ -16,7 +16,7 @@ def getRootLinkName():
         return None
 
 
-def checkAllBodiesSelected(components):
+def checkAllBodiesSelected(components: list) -> bool:
     try:
         app = adsk.core.Application.get()
         ui = app.userInterface
@@ -43,7 +43,7 @@ def checkAllBodiesSelected(components):
         return False
 
 
-def getUniqueLinkNames(components):
+def getUniqueLinkNames(components: list) -> dict:
     try:
         ui = adsk.core.Application.get().userInterface
 

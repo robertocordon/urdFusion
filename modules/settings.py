@@ -7,7 +7,7 @@ _KEY_LAST_BASE_LINK = 'last_base_link'
 _KEY_LAST_COLOR_MODE = 'last_color_mode'
 
 
-def _defaultPath():
+def _defaultPath() -> str:
     system = platform.system()
     if system == 'Windows':
         base = os.environ.get('APPDATA', os.path.expanduser('~'))
@@ -22,7 +22,7 @@ _PATH = _defaultPath()
 _cache = None
 
 
-def _load():
+def _load() -> dict:
     global _cache
     if _cache is None:
         try:
@@ -33,7 +33,7 @@ def _load():
     return _cache
 
 
-def _save(data):
+def _save(data: dict) -> None:
     try:
         os.makedirs(os.path.dirname(_PATH), exist_ok=True)
         with open(_PATH, 'w') as f:
@@ -42,31 +42,31 @@ def _save(data):
         pass
 
 
-def _update(key, value):
+def _update(key: str, value) -> None:
     _load()  # ensure _cache is populated
     _cache[key] = value
     _save(_cache)
 
 
-def getLastExportFolder():
+def getLastExportFolder() -> str:
     return _load().get(_KEY_LAST_EXPORT_FOLDER, '')
 
 
-def setLastExportFolder(folder):
+def setLastExportFolder(folder: str) -> None:
     _update(_KEY_LAST_EXPORT_FOLDER, folder)
 
 
-def getLastBaseLink():
+def getLastBaseLink() -> str:
     return _load().get(_KEY_LAST_BASE_LINK, '')
 
 
-def setLastBaseLink(name):
+def setLastBaseLink(name: str) -> None:
     _update(_KEY_LAST_BASE_LINK, name)
 
 
-def getLastColorMode():
+def getLastColorMode() -> str:
     return _load().get(_KEY_LAST_COLOR_MODE, '')
 
 
-def setLastColorMode(name):
+def setLastColorMode(name: str) -> None:
     _update(_KEY_LAST_COLOR_MODE, name)

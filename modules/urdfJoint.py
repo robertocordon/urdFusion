@@ -29,11 +29,11 @@ class JointData:
     velocity: float
 
 
-def collectJointsData(link_names, base_link):
+def collectJointsData(link_names: dict, base_link) -> tuple:
     """
     Returns (joints, child_visual_origins) where:
       joints:               list of JointData in BFS order from base_link
-      child_visual_origins: {link_name: (xyz_tuple, rpy_tuple)}
+      child_visual_origins: {link_name: VisualOrigin}
                             visual origin for each child link in its joint frame
     """
     design = adsk.fusion.Design.cast(adsk.core.Application.get().activeProduct)
@@ -64,7 +64,7 @@ def collectJointsData(link_names, base_link):
     return joints, child_visual_origins
 
 
-def _buildOccMap(link_names, base_link):
+def _buildOccMap(link_names: dict, base_link) -> dict:
     m = {base_link.entityToken: ('base_link', base_link)}
     for name, occ in link_names.items():
         if occ is not base_link:
@@ -72,7 +72,7 @@ def _buildOccMap(link_names, base_link):
     return m
 
 
-def _gatherRelevantJoints(design, occ_map, name_map):
+def _gatherRelevantJoints(design, occ_map: dict, name_map: dict) -> list:
     """Returns list of (joint, link_token_1, link_token_2)."""
     seen = set()
     relevant = []
@@ -97,7 +97,7 @@ def _gatherRelevantJoints(design, occ_map, name_map):
     return relevant
 
 
-def _findContainingLinkToken(occ, occ_map, name_map):
+def _findContainingLinkToken(occ, occ_map: dict, name_map: dict):
     """Walk up the occurrence hierarchy to find the ancestor that is a selected link."""
     current = occ
     while current is not None:
@@ -113,7 +113,7 @@ def _findContainingLinkToken(occ, occ_map, name_map):
     return None
 
 
-def _bfsTree(base_link, relevant, occ_map):
+def _bfsTree(base_link, relevant: list, occ_map: dict) -> list:
     base_token = base_link.entityToken
     visited = {base_token}
     queue = [base_token]
@@ -211,7 +211,7 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
     ), VisualOrigin(vis_xyz, (0.0, 0.0, 0.0)), joint_world
 
 
-def _getJointOriginWorld(joint, child_occ):
+def _getJointOriginWorld(joint, child_occ) -> tuple:
     """Returns joint geometry origin in root component (world) coordinates, cm."""
     try:
         if isinstance(joint, adsk.fusion.AsBuiltJoint):
@@ -226,7 +226,7 @@ def _getJointOriginWorld(joint, child_occ):
     return (t.x, t.y, t.z)
 
 
-def _getAxisWorld(motion):
+def _getAxisWorld(motion) -> tuple:
     """Returns joint axis as unit vector in root component (world) coordinates."""
     try:
         if hasattr(motion, 'rotationAxisVector'):
@@ -238,7 +238,7 @@ def _getAxisWorld(motion):
         return (0.0, 0.0, 1.0)
 
 
-def _parseTransform(m):
+def _parseTransform(m: list) -> dict:
     r = [[m[0], m[1], m[2]],
          [m[4], m[5], m[6]],
          [m[8], m[9], m[10]]]
@@ -246,15 +246,10 @@ def _parseTransform(m):
     return {'r': r, 'rT': rT, 't': (m[3], m[7], m[11])}
 
 
-def _matMul(a, b):
+def _matMul(a: list, b: list) -> list:
     return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)]
             for i in range(3)]
 
 
-def _mulRV(rT, v):
+def _mulRV(rT: list, v: tuple) -> tuple:
     return tuple(sum(rT[i][k] * v[k] for k in range(3)) for i in range(3))
-
-
-def _worldToLocal(fm, world_pt):
-    diff = tuple(world_pt[i] - fm['t'][i] for i in range(3))
-    return _mulRV(fm['rT'], diff)

@@ -45,7 +45,7 @@ class URDFLink:
     collision_mode: str = None  # None | 'same' | 'custom'
 
 
-def collectLinksData(link_names, base_link):
+def collectLinksData(link_names: dict, base_link) -> list:
     base = _collectLinkData(base_link, 'base_link')
     rest = sorted(
         [_collectLinkData(occ, name) for name, occ in link_names.items() if occ is not base_link],
@@ -54,7 +54,7 @@ def collectLinksData(link_names, base_link):
     return [base] + rest
 
 
-def _collectLinkData(occ, link_name):
+def _collectLinkData(occ, link_name: str) -> URDFLink:
     m = occ.transform.asArray()
     rotation = _extractRPY(m)
 
@@ -88,7 +88,7 @@ def _collectLinkData(occ, link_name):
     )
 
 
-def _detectCollisionMode(component):
+def _detectCollisionMode(component) -> str:
     for body in component.bRepBodies:
         if body.name == 'urdfCollision':
             return 'custom'
@@ -97,7 +97,7 @@ def _detectCollisionMode(component):
     return None
 
 
-def _extractRPY(m):
+def _extractRPY(m: list) -> RPY:
     r = [[m[0], m[1], m[2]],
          [m[4], m[5], m[6]],
          [m[8], m[9], m[10]]]

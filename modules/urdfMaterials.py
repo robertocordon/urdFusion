@@ -22,11 +22,11 @@ class MaterialData:
     rgba: tuple
 
 
-def getAvailableColors():
+def getAvailableColors() -> list:
     return list(_COLORS)
 
 
-def populateMaterials(links, joints, color_choice, link_names, base_link):
+def populateMaterials(links: list, joints: list, color_choice: str, link_names: dict, base_link) -> list:
     registry = {}  # name -> rgba
 
     if color_choice == COLOR_MODE_MATERIAL:

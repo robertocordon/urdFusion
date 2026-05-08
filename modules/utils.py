@@ -9,7 +9,7 @@ _MULTI_UNDERSCORE = re.compile(r'_+')
 _LEADING_BAD = re.compile(r'^[0-9_]+')
 
 
-def matToRPY(r):
+def matToRPY(r: list) -> tuple:
     sp = max(-1.0, min(1.0, -r[2][0]))
     p = math.asin(sp)
     cp = math.cos(p)
@@ -22,7 +22,7 @@ def matToRPY(r):
     return (roll, p, yaw)
 
 
-def sanitizeName(name):
+def sanitizeName(name: str) -> str:
     name = name.lower()
     name = _INVALID_CHARS.sub('_', name)
     name = _MULTI_UNDERSCORE.sub('_', name)

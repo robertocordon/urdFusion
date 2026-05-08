@@ -1,7 +1,7 @@
 from modules import linkSelectionDialog, linkSelection, urdfLink, urdfJoint, urdfMaterials, urdfExport
 
 
-def execute(ui):
+def execute(ui) -> None:
     def _linkSelectionComplete(components, base_link, export_stls, color_choice, folder):
         if not linkSelection.checkAllBodiesSelected(components):
             return
