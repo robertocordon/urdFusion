@@ -22,4 +22,4 @@ Export URDF files from Fusion360
   * Add the import, and then update `reloadModules`. The order matters, deeper reloads go in first.
 
 ## Roadmap
-* Support for joint fields `<dynamics damping="..." friction="..."/>` and `<limit effort="..." velocity="..."/>`
+* Make publish ready: better readme with instructions with pics. Better entry point (icon, keyboard shortcut) and more standard installation, if possible.

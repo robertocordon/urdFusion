@@ -1,11 +1,21 @@
 import adsk.core
 import adsk.fusion
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from modules import utils
 
-_DEFAULT_EFFORT = 100.0
-_DEFAULT_VELOCITY = 100.0
+_DEFAULT_EFFORT: float = 100.0
+_DEFAULT_VELOCITY: float = 100.0
+
+_VALID_JOINT_KEYS = {'d': 'damping', 'f': 'friction', 'e': 'effort', 'v': 'velocity'}
+
+
+@dataclass
+class JointParams:
+    damping: float = None
+    friction: float = None
+    effort: float = _DEFAULT_EFFORT
+    velocity: float = _DEFAULT_VELOCITY
 
 
 @dataclass
@@ -25,8 +35,35 @@ class JointData:
     axis: tuple          # (x, y, z) unit vector in joint frame; None for fixed
     lower: float         # limit in rad or m; None if not applicable
     upper: float
-    effort: float        # None for fixed/continuous
-    velocity: float
+    params: JointParams = field(default_factory=JointParams)
+
+
+def _parseJointName(raw_name: str) -> tuple:
+    parts = raw_name.split('||', 1)
+    sanitized = utils.sanitizeName(parts[0].strip())
+    params = JointParams()
+    if len(parts) == 1:
+        return sanitized, params
+
+    for token in parts[1].split():
+        if '=' not in token:
+            raise ValueError(
+                f'Invalid joint parameter "{token}" in joint "{raw_name}". Expected key=value format.'
+            )
+        key, val_str = token.split('=', 1)
+        if key not in _VALID_JOINT_KEYS:
+            raise ValueError(
+                f'Unknown joint parameter key "{key}" in joint "{raw_name}". Valid keys: d, f, e, v.'
+            )
+        try:
+            val = float(val_str)
+        except ValueError:
+            raise ValueError(
+                f'Invalid value "{val_str}" for key "{key}" in joint "{raw_name}". Must be a number.'
+            )
+        setattr(params, _VALID_JOINT_KEYS[key], val)
+
+    return sanitized, params
 
 
 def collectJointsData(link_names: dict, base_link) -> tuple:
@@ -162,7 +199,7 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
     if urdf_type == 'fixed':
         joint_world = cm['t']
         axis = None
-        lower = upper = effort = velocity = None
+        lower = upper = None
     else:
         joint_world = _getJointOriginWorld(joint, child_occ)
         axis_world = _getAxisWorld(motion)
@@ -173,10 +210,9 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
             lims = motion.rotationLimits
             if lims.isMinimumValueEnabled and lims.isMaximumValueEnabled:
                 lower, upper = lims.minimumValue, lims.maximumValue
-                effort, velocity = _DEFAULT_EFFORT, _DEFAULT_VELOCITY
             else:
                 urdf_type = 'continuous'
-                lower = upper = effort = velocity = None
+                lower = upper = None
         else:  # prismatic
             lims = motion.slideLimits
             if lims.isMinimumValueEnabled and lims.isMaximumValueEnabled:
@@ -184,7 +220,6 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
                 upper = lims.maximumValue * utils.CM_TO_M
             else:
                 lower, upper = -1e6, 1e6
-            effort, velocity = _DEFAULT_EFFORT, _DEFAULT_VELOCITY
 
     # Joint origin xyz: joint world point expressed in parent URDF link frame (cm → m).
     # Parent link frame origin is parent_frame_origin (the parent's incoming joint world pos),
@@ -196,8 +231,9 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
     diff = tuple(cm['t'][i] - joint_world[i] for i in range(3))
     vis_xyz = tuple(v * utils.CM_TO_M for v in _mulRV(cm['rT'], diff))
 
+    joint_name, params = _parseJointName(joint.name)
     return JointData(
-        name=utils.sanitizeName(joint.name),
+        name=joint_name,
         urdf_type=urdf_type,
         parent_link=parent_name,
         child_link=child_name,
@@ -206,8 +242,7 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
         axis=axis,
         lower=lower,
         upper=upper,
-        effort=effort,
-        velocity=velocity,
+        params=params,
     ), VisualOrigin(vis_xyz, (0.0, 0.0, 0.0)), joint_world
 
 

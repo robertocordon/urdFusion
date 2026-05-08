@@ -15,7 +15,11 @@ def execute(ui) -> None:
             return
 
         links = urdfLink.collectLinksData(link_names, base_link)
-        joints, child_visual_origins = urdfJoint.collectJointsData(link_names, base_link)
+        try:
+            joints, child_visual_origins = urdfJoint.collectJointsData(link_names, base_link)
+        except ValueError as e:
+            ui.messageBox(str(e), 'Joint Parameter Error')
+            return
         materials = urdfMaterials.populateMaterials(links, joints, color_choice, link_names, base_link)
 
         ok = (
