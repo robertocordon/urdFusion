@@ -60,6 +60,9 @@ class _ExecuteHandler(adsk.core.CommandEventHandler):
             color_choice = color_mode_input.selectedItem.name
             folder = inputs.itemById(_EXPORT_FOLDER_INPUT_ID).value
             settings.setLastExportFolder(folder)
+            settings.setLastColorMode(color_choice)
+            if selected and selected.index > 0:
+                settings.setLastBaseLink(selected.name)
             self._on_complete(components, base_link, export_stls_input.value, color_choice, folder)
         except Exception:
             adsk.core.Application.get().userInterface.messageBox(traceback.format_exc())
@@ -164,6 +167,12 @@ class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
                 _BASE_LINK_INPUT_ID, 'Base Link', adsk.core.DropDownStyles.TextListDropDownStyle
             )
             _rebuildBaseLinkDropdown(base_link_input, _getTopLevelOccurrences())
+            saved_base_link = settings.getLastBaseLink()
+            if saved_base_link:
+                for i in range(base_link_input.listItems.count):
+                    if base_link_input.listItems.item(i).name == saved_base_link:
+                        base_link_input.listItems.item(i).isSelected = True
+                        break
 
             cmd.commandInputs.addBoolValueInput(_EXPORT_STLS_INPUT_ID, 'Export STLs', True, '', False)
 
@@ -174,6 +183,12 @@ class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
             color_input.listItems.add(urdfMaterials.COLOR_MODE_RAINBOW, False)
             for name, _ in urdfMaterials.getAvailableColors():
                 color_input.listItems.add(name, False)
+            saved_color = settings.getLastColorMode()
+            if saved_color:
+                for i in range(color_input.listItems.count):
+                    if color_input.listItems.item(i).name == saved_color:
+                        color_input.listItems.item(i).isSelected = True
+                        break
 
             saved_folder = settings.getLastExportFolder()
             folder_input = cmd.commandInputs.addStringValueInput(

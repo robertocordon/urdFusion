@@ -3,6 +3,8 @@ import os
 import platform
 
 _KEY_LAST_EXPORT_FOLDER = 'last_export_folder'
+_KEY_LAST_BASE_LINK = 'last_base_link'
+_KEY_LAST_COLOR_MODE = 'last_color_mode'
 
 
 def _defaultPath():
@@ -43,4 +45,24 @@ def getLastExportFolder():
 def setLastExportFolder(folder):
     data = _load()
     data[_KEY_LAST_EXPORT_FOLDER] = folder
+    _save(data)
+
+
+def getLastBaseLink():
+    return _load().get(_KEY_LAST_BASE_LINK, '')
+
+
+def setLastBaseLink(name):
+    data = _load()
+    data[_KEY_LAST_BASE_LINK] = name
+    _save(data)
+
+
+def getLastColorMode():
+    return _load().get(_KEY_LAST_COLOR_MODE, '')
+
+
+def setLastColorMode(name):
+    data = _load()
+    data[_KEY_LAST_COLOR_MODE] = name
     _save(data)
