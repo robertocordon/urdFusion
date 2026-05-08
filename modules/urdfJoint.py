@@ -1,4 +1,3 @@
-import math
 import adsk.core
 import adsk.fusion
 from dataclasses import dataclass
@@ -152,7 +151,7 @@ def _buildJointData(joint, parent_name, parent_occ, child_name, child_occ, paren
 
     # origin_rpy = rotation of child component frame in parent component frame
     rel_rot = _matMul(pm['rT'], cm['r'])
-    origin_rpy = _matToRPY(rel_rot)
+    origin_rpy = utils.matToRPY(rel_rot)
 
     if urdf_type == 'fixed':
         joint_world = cm['t']
@@ -244,19 +243,6 @@ def _parseTransform(m):
 def _matMul(a, b):
     return [[sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)]
             for i in range(3)]
-
-
-def _matToRPY(r):
-    sp = max(-1.0, min(1.0, -r[2][0]))
-    p = math.asin(sp)
-    cp = math.cos(p)
-    if abs(cp) > 1e-6:
-        roll = math.atan2(r[2][1], r[2][2])
-        yaw = math.atan2(r[1][0], r[0][0])
-    else:
-        roll = 0.0
-        yaw = math.atan2(-r[0][1], r[1][1])
-    return (roll, p, yaw)
 
 
 def _mulRV(rT, v):

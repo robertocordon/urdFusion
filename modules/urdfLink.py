@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass
 
 from modules import utils
@@ -57,7 +56,7 @@ def collectLinksData(link_names, base_link):
 
 def _collectLinkData(occ, link_name):
     m = occ.transform.asArray()
-    rotation = _extractRPY(m, occ.name)
+    rotation = _extractRPY(m)
 
     tf = occ.transform.translation
     origin = Point3(tf.x * utils.CM_TO_M, tf.y * utils.CM_TO_M, tf.z * utils.CM_TO_M)
@@ -98,20 +97,9 @@ def _detectCollisionMode(component):
     return None
 
 
-def _extractRPY(m, name):
-    r00, r01, r02 = m[0], m[1], m[2]
-    r10, r11, r12 = m[4], m[5], m[6]
-    r20, r21, r22 = m[8], m[9], m[10]
-
-    sin_pitch = max(-1.0, min(1.0, -r20))
-    pitch = math.asin(sin_pitch)
-    cos_pitch = math.cos(pitch)
-
-    if abs(cos_pitch) > 1e-6:
-        roll = math.atan2(r21, r22)
-        yaw = math.atan2(r10, r00)
-    else:
-        roll = 0.0
-        yaw = math.atan2(-r01, r11)
-
+def _extractRPY(m):
+    r = [[m[0], m[1], m[2]],
+         [m[4], m[5], m[6]],
+         [m[8], m[9], m[10]]]
+    roll, pitch, yaw = utils.matToRPY(r)
     return RPY(roll, pitch, yaw)
