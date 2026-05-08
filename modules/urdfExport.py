@@ -131,14 +131,14 @@ def exportStls(ui, links, link_names, base_link, folder):
                 saved_vis = col_body.isVisible
                 col_body.isVisible = False
 
-            _exportLinkStl(export_mgr, occ, link_name, stl_folder)
+            _exportStl(export_mgr, occ.component, link_name, stl_folder)
             if _hasHiddenBodies(occ):
                 links_with_hidden.append(link_name)
 
             if col_body:
                 if col_mode == 'custom' and col_folder:
                     col_body.isVisible = True
-                    _exportBodyStl(export_mgr, col_body, link_name, col_folder)
+                    _exportStl(export_mgr, col_body, link_name, col_folder)
                 col_body.isVisible = saved_vis
 
         if links_with_hidden:
@@ -255,19 +255,9 @@ def _hasHiddenBodies(occ):
     return False
 
 
-def _exportLinkStl(export_mgr, occ, link_name, folder):
+def _exportStl(export_mgr, entity, link_name, folder):
     filename = os.path.join(folder, link_name + '.stl')
-    options = export_mgr.createSTLExportOptions(occ.component, filename)
-    options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
-    options.isBinaryFormat = True
-    options.sendToPrintUtility = False
-    options.unitType = adsk.fusion.DistanceUnits.MeterDistanceUnits
-    export_mgr.execute(options)
-
-
-def _exportBodyStl(export_mgr, body, link_name, folder):
-    filename = os.path.join(folder, link_name + '.stl')
-    options = export_mgr.createSTLExportOptions(body, filename)
+    options = export_mgr.createSTLExportOptions(entity, filename)
     options.meshRefinement = adsk.fusion.MeshRefinementSettings.MeshRefinementHigh
     options.isBinaryFormat = True
     options.sendToPrintUtility = False
