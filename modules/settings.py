@@ -38,14 +38,18 @@ def _save(data):
         pass
 
 
+def _update(key, value):
+    data = _load()
+    data[key] = value
+    _save(data)
+
+
 def getLastExportFolder():
     return _load().get(_KEY_LAST_EXPORT_FOLDER, '')
 
 
 def setLastExportFolder(folder):
-    data = _load()
-    data[_KEY_LAST_EXPORT_FOLDER] = folder
-    _save(data)
+    _update(_KEY_LAST_EXPORT_FOLDER, folder)
 
 
 def getLastBaseLink():
@@ -53,9 +57,7 @@ def getLastBaseLink():
 
 
 def setLastBaseLink(name):
-    data = _load()
-    data[_KEY_LAST_BASE_LINK] = name
-    _save(data)
+    _update(_KEY_LAST_BASE_LINK, name)
 
 
 def getLastColorMode():
@@ -63,6 +65,4 @@ def getLastColorMode():
 
 
 def setLastColorMode(name):
-    data = _load()
-    data[_KEY_LAST_COLOR_MODE] = name
-    _save(data)
+    _update(_KEY_LAST_COLOR_MODE, name)
