@@ -55,7 +55,6 @@ def exportCsv(ui, links: list, joints: list, folder: str, robot_name: str) -> bo
         for jnt in joints:
             ax = jnt.axis
             xyz, rpy = jnt.origin_xyz, jnt.origin_rpy
-            has_limits = jnt.urdf_type not in ('fixed', 'continuous')
             rows.append([
                 jnt.name, jnt.urdf_type, jnt.parent_link, jnt.child_link,
                 ax[0] if ax else '-', ax[1] if ax else '-', ax[2] if ax else '-',
@@ -65,8 +64,8 @@ def exportCsv(ui, links: list, joints: list, folder: str, robot_name: str) -> bo
                 jnt.upper if jnt.upper is not None else '-',
                 _fmtParam(jnt.params.damping, None),
                 _fmtParam(jnt.params.friction, None),
-                jnt.params.effort if has_limits else '-',
-                jnt.params.velocity if has_limits else '-',
+                jnt.params.effort if jnt.urdf_type != 'fixed' else '-',
+                jnt.params.velocity if jnt.urdf_type != 'fixed' else '-',
             ])
 
         with open(path, 'w', newline='') as f:
@@ -218,7 +217,11 @@ def exportUrdf(ui, links: list, joints: list, child_visual_origins: dict, materi
             if jnt.axis is not None:
                 ax = jnt.axis
                 ET.SubElement(jel, 'axis', xyz=f'{ax[0]} {ax[1]} {ax[2]}')
-            if jnt.urdf_type not in ('fixed', 'continuous'):
+            if jnt.urdf_type == 'continuous':
+                ET.SubElement(jel, 'limit',
+                              effort=str(jnt.params.effort),
+                              velocity=str(jnt.params.velocity))
+            elif jnt.urdf_type in ('revolute', 'prismatic'):
                 ET.SubElement(jel, 'limit',
                               lower=str(jnt.lower) if jnt.lower is not None else '0',
                               upper=str(jnt.upper) if jnt.upper is not None else '0',
