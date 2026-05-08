@@ -8,13 +8,22 @@ import traceback
 
 _COLLISION_BODY_NAMES = frozenset({'urdfCollision', 'urdfSameCollision'})
 
-_HEADER = [
+_LINK_HEADER = [
     'Component Name', 'Link Name',
     'Offset X', 'Offset Y', 'Offset Z',
     'Roll', 'Pitch', 'Yaw',
     'Mass',
     'CoM X', 'CoM Y', 'CoM Z',
     'Ixx', 'Ixy', 'Ixz', 'Iyy', 'Iyz', 'Izz',
+    'Collision Mesh', 'Material',
+]
+
+_JOINT_HEADER = [
+    'Joint Name', 'Joint Type', 'Parent', 'Child',
+    'Axis X', 'Axis Y', 'Axis Z',
+    'Origin X', 'Origin Y', 'Origin Z',
+    'Origin Roll', 'Origin Pitch', 'Origin Yaw',
+    'Lower Limit', 'Upper Limit',
 ]
 
 
@@ -30,11 +39,11 @@ def selectExportFolder(ui):
         return None
 
 
-def exportCsv(ui, links, folder, robot_name):
+def exportCsv(ui, links, joints, folder, robot_name):
     try:
         path = os.path.join(folder, robot_name + '.csv')
 
-        rows = [_HEADER]
+        rows = [_LINK_HEADER]
         for lnk in links:
             rows.append([
                 lnk.naming.component, lnk.naming.link,
@@ -44,6 +53,21 @@ def exportCsv(ui, links, folder, robot_name):
                 lnk.center_of_mass.x, lnk.center_of_mass.y, lnk.center_of_mass.z,
                 lnk.inertia.xx, lnk.inertia.xy, lnk.inertia.xz,
                 lnk.inertia.yy, lnk.inertia.yz, lnk.inertia.zz,
+                lnk.collision_mode or 'none', lnk.material or '',
+            ])
+
+        rows.append([])
+        rows.append(_JOINT_HEADER)
+        for jnt in joints:
+            ax = jnt.axis
+            xyz, rpy = jnt.origin_xyz, jnt.origin_rpy
+            rows.append([
+                jnt.name, jnt.urdf_type, jnt.parent_link, jnt.child_link,
+                ax[0] if ax else '-', ax[1] if ax else '-', ax[2] if ax else '-',
+                xyz[0], xyz[1], xyz[2],
+                rpy[0], rpy[1], rpy[2],
+                jnt.lower if jnt.lower is not None else '-',
+                jnt.upper if jnt.upper is not None else '-',
             ])
 
         with open(path, 'w', newline='') as f:

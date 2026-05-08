@@ -23,7 +23,7 @@ def execute(ui):
         materials = urdfMaterials.populateMaterials(links, joints, color_choice, link_names, base_link)
 
         ok = (
-            urdfExport.exportCsv(ui, links, folder, root_name)
+            urdfExport.exportCsv(ui, links, joints, folder, root_name)
             and urdfExport.exportUrdf(ui, links, joints, child_visual_origins, materials, folder, root_name)
             and (not export_stls or urdfExport.exportStls(ui, links, link_names, base_link, folder))
         )
