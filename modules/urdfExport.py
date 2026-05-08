@@ -49,8 +49,10 @@ def exportCsv(ui, links, folder, robot_name):
         with open(path, 'w', newline='') as f:
             csv.writer(f).writerows(rows)
 
+        return True
     except Exception:
         ui.messageBox(traceback.format_exc())
+        return False
 
 
 def exportStls(ui, links, link_names, base_link, folder):
@@ -132,8 +134,10 @@ def exportStls(ui, links, link_names, base_link, folder):
                 'Collision Body Mass Warning'
             )
 
+        return True
     except Exception:
         ui.messageBox(traceback.format_exc())
+        return False
 
 
 def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot_name):
@@ -206,8 +210,10 @@ def exportUrdf(ui, links, joints, child_visual_origins, materials, folder, robot
         with open(path, 'wb') as f:
             tree.write(f, encoding='utf-8', xml_declaration=True)
 
+        return True
     except Exception:
         ui.messageBox(traceback.format_exc())
+        return False
 
 
 def _rgba(rgba):
