@@ -24,7 +24,7 @@ def execute(ui):
 
         urdfExport.exportCsv(ui, links, folder, root_name)
         if export_stls:
-            urdfExport.exportStls(ui, link_names, base_link, folder)
+            urdfExport.exportStls(ui, links, link_names, base_link, folder)
         urdfExport.exportUrdf(ui, links, joints, child_visual_origins, materials, folder, root_name)
         ui.messageBox('URDF export complete')
 
