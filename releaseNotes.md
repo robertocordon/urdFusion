@@ -1,5 +1,9 @@
 # Release Notes
 
+## [v1.0] (2026-05-08)
+
+* All features and documentation complete.
+
 ## [v0.5] (2026-05-08)
 
 * Support for adding values for damping, friction, effort and velocity
