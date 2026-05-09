@@ -42,13 +42,15 @@ class _CreatedHandler(adsk.core.CommandCreatedEventHandler):
 def _register():
     _unregister()
 
-    cmd_def = ui.commandDefinitions.addButtonDefinition(_CMD_ID, 'urdFusion', 'Export model to URDF')
+    resources = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources')
+    cmd_def = ui.commandDefinitions.addButtonDefinition(_CMD_ID, 'urdFusion', 'Export model to URDF', resources)
     on_created = _CreatedHandler()
     cmd_def.commandCreated.add(on_created)
     _handlers.append(on_created)
 
     panel = ui.allToolbarPanels.itemById('SolidScriptsAddinsPanel')
-    panel.controls.addCommand(cmd_def)
+    control = panel.controls.addCommand(cmd_def)
+    control.isPromoted = True
 
 
 def _unregister():
