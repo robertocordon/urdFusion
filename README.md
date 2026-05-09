@@ -26,11 +26,11 @@ Export your Fusion 360 robot model to URDF with full control over which componen
 
 Press the **urdFusion** button in the Fusion toolbar to open the export dialog.
 
-> \<insert image: export dialog overview\>
+![Export dialog](images/dialog.jpg)
 
 **Export mode**: choose *All Top Level Components* to include every visible top-level occurrence, or *Custom* to select components manually. In custom mode, your selection must collectively cover every visible body in the design - any body not inside a selected component (or one of its children) will be flagged and the export blocked until it is included or hidden.
 
-> \<insert image: custom selection with highlighted components\>
+![Custom selection](images/custom.jpg)
 
 **Base Link**: select which component becomes `base_link` in the URDF. This is the root of the kinematic tree; all joints are oriented relative to it via BFS traversal.
 
@@ -45,7 +45,7 @@ Press the **urdFusion** button in the Fusion toolbar to open the export dialog.
 
 Press **Export** to run. A confirmation dialog appears when complete.
 
-> \<insert image: completed export folder contents\>
+![Export directory structure](images/directoryStructure.jpg)
 
 ---
 
@@ -70,7 +70,7 @@ Any subset of the four keys may be specified. Extra spaces around `||` and betwe
 
 The URDF joint name is taken from the part of the name **before** `||`, sanitized to ROS naming conventions.
 
-> \<insert image: joint rename in browser with || suffix\>
+![Joint parameter configuration](images/jointConfig.jpg)
 
 ---
 
@@ -87,7 +87,7 @@ By default, links have no `<collision>` geometry in the URDF. Collision geometry
 
 **STL export behavior**: the collision body is automatically hidden before the visual STL is exported and restored afterwards, so it will not appear in the visual mesh regardless of its visibility in the browser.
 
-> \<insert image: browser showing urdfCollision body inside a component\>
+![Collision mesh setup](images/collision.jpg)
 
 ---
 
