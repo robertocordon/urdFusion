@@ -7,7 +7,7 @@ COLOR_MODE_MATERIAL = 'Material Colors'
 COLOR_MODE_RAINBOW = 'Rainbow'
 
 _COLORS = [
-    ('slate_blue',   (0.180, 0.200, 0.450, 1.0)),
+    ('cool_blue',    (0.045, 0.048, 0.119, 1.0)),
     ('crimson',      (0.550, 0.070, 0.090, 1.0)),
     ('forest_green', (0.130, 0.370, 0.180, 1.0)),
     ('amber',        (0.800, 0.500, 0.050, 1.0)),
