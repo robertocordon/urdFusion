@@ -1,5 +1,15 @@
 # Release Notes
 
+## [v1.1] (2026-05-13)
+
+> Fixed bug found in production, and improvement on readability
+
+### Bug Fixes
+* Visual origin was correctly offset when attaching link to a joint. But inertial origin (aka CoM) was not updated. Fixed.
+
+### Other Changes
+* Values in URDF and CSV were unnecessarily precise. Masses and points are now expressed with 6 decimal places, and inertial values with 6 significant figures.
+
 ## [v1.0] (2026-05-08)
 
 * All features and documentation complete.
