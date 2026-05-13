@@ -37,16 +37,19 @@ def exportCsv(ui, links: list, joints: list, folder: str, robot_name: str) -> bo
     try:
         path = os.path.join(folder, robot_name + '.csv')
 
+        def _r(v): return round(v, 6)
+        def _ri(v): return round(v, 10)  # inertia: kill noise, keep sig figs for spreadsheet
+
         rows = [_LINK_HEADER]
         for lnk in links:
             rows.append([
                 lnk.naming.component, lnk.naming.link,
-                lnk.origin.x, lnk.origin.y, lnk.origin.z,
-                lnk.rotation.r, lnk.rotation.p, lnk.rotation.y,
-                lnk.mass,
-                lnk.center_of_mass.x, lnk.center_of_mass.y, lnk.center_of_mass.z,
-                lnk.inertia.xx, lnk.inertia.xy, lnk.inertia.xz,
-                lnk.inertia.yy, lnk.inertia.yz, lnk.inertia.zz,
+                _r(lnk.origin.x), _r(lnk.origin.y), _r(lnk.origin.z),
+                _r(lnk.rotation.r), _r(lnk.rotation.p), _r(lnk.rotation.y),
+                _r(lnk.mass),
+                _r(lnk.center_of_mass.x), _r(lnk.center_of_mass.y), _r(lnk.center_of_mass.z),
+                _ri(lnk.inertia.xx), _ri(lnk.inertia.xy), _ri(lnk.inertia.xz),
+                _ri(lnk.inertia.yy), _ri(lnk.inertia.yz), _ri(lnk.inertia.zz),
                 lnk.collision_mode or 'none', lnk.material or '',
             ])
 
@@ -57,11 +60,11 @@ def exportCsv(ui, links: list, joints: list, folder: str, robot_name: str) -> bo
             xyz, rpy = jnt.origin_xyz, jnt.origin_rpy
             rows.append([
                 jnt.name, jnt.urdf_type, jnt.parent_link, jnt.child_link,
-                ax[0] if ax else '-', ax[1] if ax else '-', ax[2] if ax else '-',
-                xyz[0], xyz[1], xyz[2],
-                rpy[0], rpy[1], rpy[2],
-                jnt.lower if jnt.lower is not None else '-',
-                jnt.upper if jnt.upper is not None else '-',
+                _r(ax[0]) if ax else '-', _r(ax[1]) if ax else '-', _r(ax[2]) if ax else '-',
+                _r(xyz[0]), _r(xyz[1]), _r(xyz[2]),
+                _r(rpy[0]), _r(rpy[1]), _r(rpy[2]),
+                _r(jnt.lower) if jnt.lower is not None else '-',
+                _r(jnt.upper) if jnt.upper is not None else '-',
                 _fmtParam(jnt.params.damping, None),
                 _fmtParam(jnt.params.friction, None),
                 jnt.params.effort if jnt.urdf_type != 'fixed' else '-',
@@ -176,19 +179,19 @@ def exportUrdf(ui, links: list, joints: list, child_visual_origins: dict, materi
             inertial = ET.SubElement(link_el, 'inertial')
             c = lnk.center_of_mass
             ET.SubElement(inertial, 'origin',
-                          xyz=f'{c.x} {c.y} {c.z}',
+                          xyz=_fxyz(c.x, c.y, c.z),
                           rpy='0 0 0')
-            ET.SubElement(inertial, 'mass', value=str(lnk.mass))
+            ET.SubElement(inertial, 'mass', value=_f(lnk.mass))
             i = lnk.inertia
             ET.SubElement(inertial, 'inertia',
-                          ixx=str(i.xx), ixy=str(i.xy), ixz=str(i.xz),
-                          iyy=str(i.yy), iyz=str(i.yz), izz=str(i.zz))
+                          ixx=_fi(i.xx), ixy=_fi(i.xy), ixz=_fi(i.xz),
+                          iyy=_fi(i.yy), iyz=_fi(i.yz), izz=_fi(i.zz))
 
             mesh_path = 'STL/' + lnk.naming.link + '.stl'
             vis = child_visual_origins.get(lnk.naming.link, _ZERO_ORIGIN)
             vis_attrib = {
-                'xyz': f'{vis.xyz[0]} {vis.xyz[1]} {vis.xyz[2]}',
-                'rpy': f'{vis.rpy[0]} {vis.rpy[1]} {vis.rpy[2]}',
+                'xyz': _fxyz(*vis.xyz),
+                'rpy': _frpy(*vis.rpy),
             }
 
             vis_el = ET.SubElement(link_el, 'visual')
@@ -212,28 +215,28 @@ def exportUrdf(ui, links: list, joints: list, child_visual_origins: dict, materi
             ET.SubElement(jel, 'child', link=jnt.child_link)
             xyz, rpy = jnt.origin_xyz, jnt.origin_rpy
             ET.SubElement(jel, 'origin',
-                          xyz=f'{xyz[0]} {xyz[1]} {xyz[2]}',
-                          rpy=f'{rpy[0]} {rpy[1]} {rpy[2]}')
+                          xyz=_fxyz(*xyz),
+                          rpy=_frpy(*rpy))
             if jnt.axis is not None:
                 ax = jnt.axis
-                ET.SubElement(jel, 'axis', xyz=f'{ax[0]} {ax[1]} {ax[2]}')
+                ET.SubElement(jel, 'axis', xyz=_fxyz(*ax))
             if jnt.urdf_type == 'continuous':
                 ET.SubElement(jel, 'limit',
-                              effort=str(jnt.params.effort),
-                              velocity=str(jnt.params.velocity))
+                              effort=_f(jnt.params.effort),
+                              velocity=_f(jnt.params.velocity))
             elif jnt.urdf_type in ('revolute', 'prismatic'):
                 ET.SubElement(jel, 'limit',
-                              lower=str(jnt.lower) if jnt.lower is not None else '0',
-                              upper=str(jnt.upper) if jnt.upper is not None else '0',
-                              effort=str(jnt.params.effort),
-                              velocity=str(jnt.params.velocity))
+                              lower=_f(jnt.lower) if jnt.lower is not None else '0',
+                              upper=_f(jnt.upper) if jnt.upper is not None else '0',
+                              effort=_f(jnt.params.effort),
+                              velocity=_f(jnt.params.velocity))
             d, f = jnt.params.damping, jnt.params.friction
             if d is not None or f is not None:
                 dyn_attribs = {}
                 if d is not None:
-                    dyn_attribs['damping'] = str(d)
+                    dyn_attribs['damping'] = _f(d)
                 if f is not None:
-                    dyn_attribs['friction'] = str(f)
+                    dyn_attribs['friction'] = _f(f)
                 ET.SubElement(jel, 'dynamics', **dyn_attribs)
 
         tree = ET.ElementTree(robot)
@@ -246,6 +249,24 @@ def exportUrdf(ui, links: list, joints: list, child_visual_origins: dict, materi
     except Exception:
         ui.messageBox(traceback.format_exc())
         return False
+
+
+def _f(v: float) -> str:
+    """6 decimal places — eliminates near-zero float noise for positions, angles, mass."""
+    return str(round(v, 6))
+
+
+def _fi(v: float) -> str:
+    """6 significant figures for inertia; rounds to 10 dp first to kill ~1e-32 noise."""
+    return f'{round(v, 10):.6g}'
+
+
+def _fxyz(a: float, b: float, c: float) -> str:
+    return f'{_f(a)} {_f(b)} {_f(c)}'
+
+
+def _frpy(a: float, b: float, c: float) -> str:
+    return f'{_f(a)} {_f(b)} {_f(c)}'
 
 
 def _fmtParam(user_val, default_val) -> str:

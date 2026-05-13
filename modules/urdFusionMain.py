@@ -16,7 +16,7 @@ def execute(ui) -> None:
 
         links = urdfLink.collectLinksData(link_names, base_link)
         try:
-            joints, child_visual_origins = urdfJoint.collectJointsData(link_names, base_link)
+            joints, child_visual_origins = urdfJoint.collectJointsData(links, link_names, base_link)
         except ValueError as e:
             ui.messageBox(str(e), 'Joint Parameter Error')
             return
