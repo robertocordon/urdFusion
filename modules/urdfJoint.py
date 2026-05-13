@@ -66,7 +66,26 @@ def _parseJointName(raw_name: str) -> tuple:
     return sanitized, params
 
 
-def collectJointsData(link_names: dict, base_link) -> tuple:
+def _applyLinkFramesToCoM(links: list, child_visual_origins: dict) -> None:
+    """
+    Shifts each child link's center_of_mass from the component frame to the joint frame.
+
+    The inertial origin must be expressed in the link frame (= joint frame for child links).
+    The shift equals the visual origin delta: new_inertial = old_inertial + (new_vis - old_vis).
+    Since the original visual origin is always (0,0,0) — STLs are exported in the component
+    local frame, so the mesh always sits at the component origin before joint adjustment —
+    the delta equals vis_xyz directly.
+    """
+    for lnk in links:
+        vis = child_visual_origins.get(lnk.naming.link)
+        if vis is None:
+            continue
+        lnk.center_of_mass.x += vis.xyz[0]
+        lnk.center_of_mass.y += vis.xyz[1]
+        lnk.center_of_mass.z += vis.xyz[2]
+
+
+def collectJointsData(links: list, link_names: dict, base_link) -> tuple:
     """
     Returns (joints, child_visual_origins) where:
       joints:               list of JointData in BFS order from base_link
@@ -98,6 +117,7 @@ def collectJointsData(link_names: dict, base_link) -> tuple:
             joints.append(jdata)
             child_visual_origins[child_name] = vis
 
+    _applyLinkFramesToCoM(links, child_visual_origins)
     return joints, child_visual_origins
 
 
