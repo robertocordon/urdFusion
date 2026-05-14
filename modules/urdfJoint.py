@@ -66,23 +66,25 @@ def _parseJointName(raw_name: str) -> tuple:
     return sanitized, params
 
 
-def _applyLinkFramesToCoM(links: list, child_visual_origins: dict) -> None:
+def _applyLinkFramesToCoM(links: list, child_link_frames: dict) -> None:
     """
-    Shifts each child link's center_of_mass from the component frame to the joint frame.
+    Transforms each child link's center_of_mass from world frame to its joint (link) frame.
 
-    The inertial origin must be expressed in the link frame (= joint frame for child links).
-    The shift equals the visual origin delta: new_inertial = old_inertial + (new_vis - old_vis).
-    Since the original visual origin is always (0,0,0) — STLs are exported in the component
-    local frame, so the mesh always sits at the component origin before joint adjustment —
-    the delta equals vis_xyz directly.
+    center_of_mass arrives here in world space (from occ.physicalProperties).
+    The link frame for a child link is at joint_world with child component orientation R_child.
+    CoM_link = R_child^T * (CoM_world - joint_world)
     """
     for lnk in links:
-        vis = child_visual_origins.get(lnk.naming.link)
-        if vis is None:
+        entry = child_link_frames.get(lnk.naming.link)
+        if entry is None:
             continue
-        lnk.center_of_mass.x += vis.xyz[0]
-        lnk.center_of_mass.y += vis.xyz[1]
-        lnk.center_of_mass.z += vis.xyz[2]
+        rT, joint_world_m = entry
+        com = lnk.center_of_mass
+        diff = (com.x - joint_world_m[0], com.y - joint_world_m[1], com.z - joint_world_m[2])
+        result = _mulRV(rT, diff)
+        lnk.center_of_mass.x = result[0]
+        lnk.center_of_mass.y = result[1]
+        lnk.center_of_mass.z = result[2]
 
 
 def collectJointsData(links: list, link_names: dict, base_link) -> tuple:
@@ -104,6 +106,7 @@ def collectJointsData(links: list, link_names: dict, base_link) -> tuple:
 
     joints = []
     child_visual_origins = {}
+    child_link_frames = {}  # {link_name: (rT, joint_world_m)} for CoM transform
 
     for parent_token, child_token, joint in tree_edges:
         parent_name, parent_occ = occ_map[parent_token]
@@ -116,8 +119,11 @@ def collectJointsData(links: list, link_names: dict, base_link) -> tuple:
         if jdata is not None:
             joints.append(jdata)
             child_visual_origins[child_name] = vis
+            cm_tf = _parseTransform(child_occ.transform.asArray())
+            joint_world_m = tuple(v * utils.CM_TO_M for v in joint_world)
+            child_link_frames[child_name] = (cm_tf['rT'], joint_world_m)
 
-    _applyLinkFramesToCoM(links, child_visual_origins)
+    _applyLinkFramesToCoM(links, child_link_frames)
     return joints, child_visual_origins
 
 

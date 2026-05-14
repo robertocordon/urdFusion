@@ -61,7 +61,7 @@ def _collectLinkData(occ, link_name: str) -> URDFLink:
     tf = occ.transform.translation
     origin = Point3(tf.x * utils.CM_TO_M, tf.y * utils.CM_TO_M, tf.z * utils.CM_TO_M)
 
-    props = occ.component.physicalProperties
+    props = occ.physicalProperties
     mass = props.mass
 
     com = props.centerOfMass
